@@ -15,64 +15,9 @@ provider "vultr" {
   retry_limit = 3
 }
 
-# Create a new VPS for the frontend component
-resource "vultr_instance" "frontend" {
-  plan             = var.plan_id                # e.g., "vc2-1c-1gb"
-  region           = var.region                 # e.g., "ewr" (New Jersey)
-  os_id            = 1743                       # Ubuntu 22.04 LTS x64
-  label            = "metrics-frontend"
-  hostname         = "metrics-frontend"
-  ssh_key_ids      = [var.ssh_key_id]
-  enable_ipv6      = true
-  backups          = "disabled"
-  ddos_protection  = false
-  activation_email = false
-  
-  # User data for initial setup
-  user_data = <<-EOF
-    #!/bin/bash
-    apt-get update
-    apt-get install -y \
-      apt-transport-https \
-      ca-certificates \
-      curl \
-      gnupg-agent \
-      software-properties-common \
-      ufw
-
-    # Install Docker
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-    apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io
-    systemctl enable docker
-    systemctl start docker
-
-    # Install WireGuard
-    apt-get install -y wireguard
-
-    # Configure firewall
-    ufw default deny incoming
-    ufw default allow outgoing
-    ufw allow 22/tcp
-    ufw allow 80/tcp
-    ufw allow 443/tcp
-    ufw allow 51820/udp  # WireGuard
-    ufw enable
-  EOF
-
-  tags = ["metrics", "frontend"]
-}
-
 # Create a firewall group
 resource "vultr_firewall_group" "frontend" {
   description = "Metrics Frontend Firewall"
-}
-
-# Link the instance to the firewall group
-resource "vultr_firewall_group_instance" "frontend" {
-  firewall_group_id = vultr_firewall_group.frontend.id
-  instance_id       = vultr_instance.frontend.id
 }
 
 # SSH rule
@@ -119,6 +64,64 @@ resource "vultr_firewall_rule" "wireguard" {
   notes             = "Allow WireGuard"
 }
 
+# Look up the SSH key by name
+data "vultr_ssh_key" "metrics" {
+  filter {
+    name = "name"
+    values = [var.ssh_key_name]
+  }
+}
+
+# Create a new VPS for the frontend component
+resource "vultr_instance" "frontend" {
+  plan             = var.plan_id                # e.g., "vc2-1c-1gb"
+  region           = var.region                 # e.g., "ewr" (New Jersey)
+  os_id            = 1743                       # Ubuntu 22.04 LTS x64
+  label            = "metrics-frontend"
+  hostname         = "metrics-frontend"
+  ssh_key_ids      = [data.vultr_ssh_key.metrics.id]
+  enable_ipv6      = true
+  backups          = "disabled"
+  ddos_protection  = false
+  activation_email = false
+  firewall_group_id = vultr_firewall_group.frontend.id
+  
+  # User data for initial setup
+  user_data = <<-EOF
+    #!/bin/bash
+    apt-get update
+    apt-get install -y \
+      apt-transport-https \
+      ca-certificates \
+      curl \
+      gnupg-agent \
+      software-properties-common \
+      ufw
+
+    # Install Docker
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+    apt-get update
+    apt-get install -y docker-ce docker-ce-cli containerd.io
+    systemctl enable docker
+    systemctl start docker
+
+    # Install WireGuard
+    apt-get install -y wireguard
+
+    # Configure firewall
+    ufw default deny incoming
+    ufw default allow outgoing
+    ufw allow 22/tcp
+    ufw allow 80/tcp
+    ufw allow 443/tcp
+    ufw allow 51820/udp  # WireGuard
+    ufw enable
+  EOF
+
+  tags = ["metrics", "frontend"]
+}
+
 # Create a reserved IP (equivalent to floating IP in Vultr)
 resource "vultr_reserved_ip" "frontend" {
   region           = var.region
@@ -129,5 +132,5 @@ resource "vultr_reserved_ip" "frontend" {
 
 # Output the IP address
 output "frontend_ip" {
-  value = vultr_reserved_ip.frontend.ip
+  value = vultr_reserved_ip.frontend.id
 }

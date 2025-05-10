@@ -1,0 +1,55 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+*.tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ansible
+ansible/inventories/*/hosts.yml
+ansible/vars/secrets.yml
+*.retry
+
+# SSH Keys
+*.pem
+*.key
+id_rsa*
+*.ppk
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose.override.yml
+
+# Certificates
+*.crt
+*.csr
+*.key
+*.p12
+*.pem
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Editor specific
+.vscode/
+.idea/
+*.swp
+*~
+
+# Wireguard
+wg*.conf
+
+# Other sensitive data
+**/credentials.yml
+**/passwords.yml
+**/tokens.yml

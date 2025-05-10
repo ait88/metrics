@@ -18,8 +18,8 @@ variable "plan_id" {
   default     = "vc2-1c-1gb"  # 1 CPU, 1 GB RAM
 }
 
-variable "ssh_key_id" {
-  description = "ID of the SSH key to add to the instance"
+variable "ssh_key_name" {
+  description = "Name of the SSH key to add to the instance"
   type        = string
 }
 

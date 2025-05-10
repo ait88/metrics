@@ -12,7 +12,70 @@ This project implements a scalable, hierarchical monitoring solution with the fo
 - Exportable metrics for custom dashboards/portals
 - Configuration as code (Git-based)
 
-## Architecture
+## Infrastructure Details
+
+### Cloud Provider
+
+This project uses Vultr as the cloud provider for the frontend component. The frontend infrastructure is defined in Terraform configurations under `terraform/frontend/`. 
+
+Key components of the frontend infrastructure:
+- Vultr instance (1 CPU, 1 GB RAM by default)
+- Firewall rules for required ports (SSH, HTTP, HTTPS, WireGuard)
+- Reserved IP address for stable connectivity
+
+### Security
+
+The monitoring infrastructure implements several security measures:
+- WireGuard VPN for secure communication between frontend and backend
+- Firewall rules to restrict access to necessary ports
+- HTTPS with Let's Encrypt certificates for all web services
+- Basic authentication for web interfaces
+- Principle of least privilege for service accounts
+
+### Communication Flow
+
+1. Remote systems connect to the frontend component via HTTPS
+2. The frontend component securely forwards data to the backend via WireGuard VPN
+3. Backend components process, store, and visualize the data
+4. Alerts are generated and sent to notification channels as needed
+
+## CI/CD Workflow
+
+This project includes a GitHub Actions workflow for automated deployment:
+
+- **Validation**: Checks Terraform formatting and validates configurations
+- **Frontend Deployment**: Provisions the Vultr infrastructure
+- **Backend Deployment**: Sets up the backend components
+
+The workflow can be triggered manually through the GitHub Actions interface.
+
+## Project Organization
+
+```
+metrics/
+├── docs/                       # Documentation
+│   ├── architecture.md         # Architecture diagrams and explanations
+│   ├── setup.md                # Setup instructions
+│   └── git_workflow.md         # Git workflow guidelines
+├── terraform/                  # Infrastructure as code
+│   ├── frontend/               # Vultr infrastructure for frontend
+│   └── backend/                # Backend infrastructure
+├── ansible/                    # Configuration management
+│   ├── playbooks/              # Deployment playbooks
+│   ├── roles/                  # Reusable roles
+│   ├── inventories/            # Environment-specific inventories
+│   └── vars/                   # Variables and secrets
+├── docker/                     # Container configurations
+│   ├── frontend/               # Frontend Docker services
+│   └── backend/                # Backend Docker services
+├── exporters/                  # Exporter configurations
+├── dashboards/                 # Grafana dashboard JSON files
+├── .github/workflows/          # CI/CD workflows
+├── .gitignore                  # Git ignore patterns
+└── setup.sh                    # Automated setup script
+```
+
+## Monitoring Architecture
 
 The monitoring infrastructure follows a distributed architecture:
 
@@ -27,35 +90,6 @@ Systems monitored:
 - Ubuntu-based kiosks
 - Windows servers and workstations (stretch goal)
 
-## Repository Structure
-
-```
-metrics/
-├── docs/                       # Documentation
-│   ├── architecture.md         # Architecture diagrams and explanations
-│   └── setup.md                # Setup instructions
-├── terraform/                  # Infrastructure as code
-│   ├── frontend/               # VPS with public IP
-│   └── backend/                # Backend infrastructure
-├── ansible/                    # Configuration management
-│   ├── playbooks/              # Deployment playbooks
-│   └── roles/                  # Reusable roles
-├── docker/                     # Container configurations
-│   ├── prometheus/             # Prometheus container setup
-│   ├── grafana/                # Grafana container setup
-│   ├── alertmanager/           # Alertmanager container setup
-│   └── loki/                   # Loki container setup
-├── exporters/                  # Exporter configurations
-│   ├── node_exporter/          # Linux systems monitoring
-│   ├── cadvisor/               # Container monitoring
-│   ├── blackbox_exporter/      # Endpoint probing
-│   ├── hypervisor_exporters/   # Proxmox and XCP-ng monitoring
-│   └── windows_exporter/       # Windows monitoring
-├── dashboards/                 # Grafana dashboard JSON files
-└── .github/                    # GitHub workflows
-    └── workflows/              # CI/CD workflows
-```
-
 ## Getting Started
 
 ### Prerequisites
@@ -64,36 +98,86 @@ metrics/
 - Terraform
 - Ansible
 - Git
+- Vultr account with API key
 
-### Setup Instructions
+### Automated Setup
+
+We provide a setup script that helps you configure the necessary files and directories:
+
+```bash
+# Make the setup script executable
+chmod +x setup.sh
+
+# Run the setup script
+./setup.sh
+```
+
+The setup script will:
+1. Create the necessary directory structure
+2. Prompt for configuration values (Vultr API key, SSH key name, domain, etc.)
+3. Generate configuration files from these inputs
+4. Set up terraform.tfvars and other required files
+
+### Manual Setup
+
+If you prefer to set up the project manually:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/ait88/metrics.git
+   cd metrics
+   ```
+
+2. Create terraform.tfvars from the example:
+   ```bash
+   cp terraform/frontend/terraform.tfvars.example terraform/frontend/terraform.tfvars
+   # Edit the terraform.tfvars file with your Vultr credentials
+   ```
+
+3. Deploy the frontend infrastructure:
+   ```bash
+   cd terraform/frontend
+   terraform init
+   terraform plan -out=tfplan
+   terraform apply tfplan
+   ```
 
 Detailed setup instructions can be found in [docs/setup.md](docs/setup.md).
+
+### Git Workflow
+
+For guidelines on working with this Git repository, including best practices and handling sensitive data, see [docs/git_workflow.md](docs/git_workflow.md).
 
 ## Implementation Phases
 
 ### Phase 1: Core Infrastructure
-1. Set up central Prometheus/Grafana server
-2. Implement secure remote access architecture
-3. Create base configuration templates
-4. Establish Git repository structure
+- [x] Initialize repository structure
+- [x] Create Terraform configuration for frontend
+- [x] Set up automated deployment workflow
+- [x] Implement frontend provisioning
+- [ ] Configure WireGuard VPN
+- [ ] Set up Docker services on frontend
 
-### Phase 2: Basic Monitoring
-1. Deploy node_exporter to Linux systems
-2. Set up Docker monitoring
-3. Create initial dashboards
-4. Implement basic alerting
+### Phase 2: Backend Setup
+- [ ] Create backend infrastructure
+- [ ] Deploy Prometheus, Grafana, Alertmanager, and Loki
+- [ ] Configure persistent storage
+- [ ] Set up authentication and security
+- [ ] Create initial dashboards
 
-### Phase 3: Advanced Monitoring
-1. Add hypervisor monitoring
-2. Implement Windows monitoring
-3. Set up kiosk monitoring
-4. Configure advanced alerting rules
+### Phase 3: Monitoring Agents
+- [ ] Deploy node_exporter to Linux systems
+- [ ] Set up Docker monitoring with cAdvisor
+- [ ] Configure hypervisor monitoring
+- [ ] Set up kiosk monitoring
+- [ ] Implement Windows monitoring (stretch goal)
 
-### Phase 4: Relationship Mapping
-1. Deploy NetBox for infrastructure modeling
-2. Create service dependency configurations
-3. Build relationship visualization dashboards
-4. Implement topology views
+### Phase 4: Advanced Features
+- [ ] Deploy NetBox for infrastructure modeling
+- [ ] Create service dependency configurations
+- [ ] Build relationship visualization dashboards
+- [ ] Implement topology views
+- [ ] Set up advanced alerting rules
 
 ## License
 
