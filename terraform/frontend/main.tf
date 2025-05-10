@@ -2,25 +2,32 @@
 
 terraform {
   required_providers {
-    digitalocean = {
-      source  = "digitalocean/digitalocean"
-      version = "~> 2.0"
+    vultr = {
+      source  = "vultr/vultr"
+      version = "~> 2.12.0"
     }
   }
 }
 
-provider "digitalocean" {
-  token = var.do_token
+provider "vultr" {
+  api_key = var.vultr_api_key
+  rate_limit = 700
+  retry_limit = 3
 }
 
 # Create a new VPS for the frontend component
-resource "digitalocean_droplet" "frontend" {
-  image    = "ubuntu-22-04-x64"
-  name     = "metrics-frontend"
-  region   = var.region
-  size     = "s-1vcpu-1gb"  # Adjust based on your needs
-  ssh_keys = [var.ssh_key_id]
-
+resource "vultr_instance" "frontend" {
+  plan             = var.plan_id                # e.g., "vc2-1c-1gb"
+  region           = var.region                 # e.g., "ewr" (New Jersey)
+  os_id            = 1743                       # Ubuntu 22.04 LTS x64
+  label            = "metrics-frontend"
+  hostname         = "metrics-frontend"
+  ssh_key_ids      = [var.ssh_key_id]
+  enable_ipv6      = true
+  backups          = "disabled"
+  ddos_protection  = false
+  activation_email = false
+  
   # User data for initial setup
   user_data = <<-EOF
     #!/bin/bash
@@ -57,66 +64,70 @@ resource "digitalocean_droplet" "frontend" {
   tags = ["metrics", "frontend"]
 }
 
-# Create a firewall
-resource "digitalocean_firewall" "frontend" {
-  name = "metrics-frontend-firewall"
-
-  droplet_ids = [digitalocean_droplet.frontend.id]
-
-  # SSH
-  inbound_rule {
-    protocol         = "tcp"
-    port_range       = "22"
-    source_addresses = var.allowed_ssh_ips
-  }
-
-  # HTTP
-  inbound_rule {
-    protocol         = "tcp"
-    port_range       = "80"
-    source_addresses = ["0.0.0.0/0", "::/0"]
-  }
-
-  # HTTPS
-  inbound_rule {
-    protocol         = "tcp"
-    port_range       = "443"
-    source_addresses = ["0.0.0.0/0", "::/0"]
-  }
-
-  # WireGuard
-  inbound_rule {
-    protocol         = "udp"
-    port_range       = "51820"
-    source_addresses = ["0.0.0.0/0", "::/0"]
-  }
-
-  # Allow all outbound traffic
-  outbound_rule {
-    protocol              = "tcp"
-    port_range            = "1-65535"
-    destination_addresses = ["0.0.0.0/0", "::/0"]
-  }
-
-  outbound_rule {
-    protocol              = "udp"
-    port_range            = "1-65535"
-    destination_addresses = ["0.0.0.0/0", "::/0"]
-  }
-
-  outbound_rule {
-    protocol              = "icmp"
-    destination_addresses = ["0.0.0.0/0", "::/0"]
-  }
+# Create a firewall group
+resource "vultr_firewall_group" "frontend" {
+  description = "Metrics Frontend Firewall"
 }
 
-# Create a reserved IP
-resource "digitalocean_reserved_ip" "frontend" {
-  droplet_id = digitalocean_droplet.frontend.id
-  region     = var.region
+# Link the instance to the firewall group
+resource "vultr_firewall_group_instance" "frontend" {
+  firewall_group_id = vultr_firewall_group.frontend.id
+  instance_id       = vultr_instance.frontend.id
+}
+
+# SSH rule
+resource "vultr_firewall_rule" "ssh" {
+  firewall_group_id = vultr_firewall_group.frontend.id
+  protocol          = "tcp"
+  ip_type           = "v4"
+  subnet            = "0.0.0.0"
+  subnet_size       = 0
+  port              = "22"
+  notes             = "Allow SSH"
+}
+
+# HTTP rule
+resource "vultr_firewall_rule" "http" {
+  firewall_group_id = vultr_firewall_group.frontend.id
+  protocol          = "tcp"
+  ip_type           = "v4"
+  subnet            = "0.0.0.0"
+  subnet_size       = 0
+  port              = "80"
+  notes             = "Allow HTTP"
+}
+
+# HTTPS rule
+resource "vultr_firewall_rule" "https" {
+  firewall_group_id = vultr_firewall_group.frontend.id
+  protocol          = "tcp"
+  ip_type           = "v4"
+  subnet            = "0.0.0.0"
+  subnet_size       = 0
+  port              = "443"
+  notes             = "Allow HTTPS"
+}
+
+# WireGuard rule
+resource "vultr_firewall_rule" "wireguard" {
+  firewall_group_id = vultr_firewall_group.frontend.id
+  protocol          = "udp"
+  ip_type           = "v4"
+  subnet            = "0.0.0.0"
+  subnet_size       = 0
+  port              = "51820"
+  notes             = "Allow WireGuard"
+}
+
+# Create a reserved IP (equivalent to floating IP in Vultr)
+resource "vultr_reserved_ip" "frontend" {
+  region           = var.region
+  ip_type          = "v4"
+  label            = "metrics-frontend-ip"
+  instance_id      = vultr_instance.frontend.id
 }
 
 # Output the IP address
 output "frontend_ip" {
-  value = digitalocean_reserved_ip.frontend.ip_address
+  value = vultr_reserved_ip.frontend.ip
 }
