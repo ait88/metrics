@@ -109,14 +109,33 @@ resource "vultr_instance" "frontend" {
     # Install WireGuard
     apt-get install -y wireguard
 
-    # Configure firewall
+    # Configure firewall - more restrictive approach
     ufw default deny incoming
     ufw default allow outgoing
-    ufw allow 22/tcp
+    
+    # Allow SSH only from specified IPs if provided
+    if [ -n "${join(",", var.allowed_ssh_ips)}" ]; then
+      for ip in ${join(" ", var.allowed_ssh_ips)}; do
+        ufw allow from $ip to any port 22 proto tcp
+      done
+    else
+      # Fallback to allowing SSH from anywhere (not recommended for production)
+      ufw allow 22/tcp
+    fi
+    
+    # Allow HTTP/HTTPS for web access
     ufw allow 80/tcp
     ufw allow 443/tcp
-    ufw allow 51820/udp  # WireGuard
-    ufw enable
+    
+    # Allow WireGuard VPN
+    ufw allow 51820/udp
+    
+    # Enable firewall
+    echo "y" | ufw enable
+    
+    # Set SSH to prohibit password authentication
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+    systemctl restart sshd
   EOF
 
   tags = ["metrics", "frontend"]

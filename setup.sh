@@ -16,17 +16,40 @@ echo -e "\n${YELLOW}Checking prerequisites...${NC}"
 command -v terraform >/dev/null 2>&1 || { echo -e "${RED}Terraform is required but not installed. Aborting.${NC}"; exit 1; }
 command -v git >/dev/null 2>&1 || { echo -e "${RED}Git is required but not installed. Aborting.${NC}"; exit 1; }
 
-# Create necessary directories
+# Create necessary directories (idempotent)
 echo -e "\n${YELLOW}Creating directory structure...${NC}"
-mkdir -p terraform/backend
-mkdir -p ansible/roles/{frontend,backend,wireguard}/templates
-mkdir -p ansible/inventories/{development,production}
-mkdir -p ansible/vars
-mkdir -p docker/{frontend,backend}/{prometheus,grafana,alertmanager,loki}
-mkdir -p exporters/{node_exporter,cadvisor,blackbox_exporter,hypervisor_exporters,windows_exporter}
-mkdir -p dashboards
+for dir in \
+  terraform/backend \
+  ansible/roles/{frontend,backend,wireguard}/templates \
+  ansible/inventories/{development,production} \
+  ansible/vars \
+  docker/{frontend,backend}/{prometheus,grafana,alertmanager,loki} \
+  exporters/{node_exporter,cadvisor,blackbox_exporter,hypervisor_exporters,windows_exporter} \
+  dashboards
+do
+  if [ ! -d "$dir" ]; then
+    mkdir -p "$dir"
+    echo -e "Created directory: ${GREEN}$dir${NC}"
+  else
+    echo -e "Directory already exists: ${YELLOW}$dir${NC}"
+  fi
+done
 
-echo -e "${GREEN}Directory structure created successfully.${NC}"
+echo -e "${GREEN}Directory structure checked and created where needed.${NC}"
+
+# Function to safely create a file without overwriting existing ones
+create_file_if_not_exists() {
+  if [ -f "$1" ]; then
+    echo -e "${YELLOW}File already exists: $1${NC}"
+    read -p "Do you want to overwrite it? (y/n) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo -e "${YELLOW}Skipping file: $1${NC}"
+      return 1
+    fi
+  fi
+  return 0
+}
 
 # Collect variables
 echo -e "\n${YELLOW}Please provide the following information for configuration:${NC}"
@@ -60,7 +83,9 @@ fi
 echo -e "\n${YELLOW}Setting up Terraform configuration...${NC}"
 
 # Create terraform.tfvars file for frontend
-cat > terraform/frontend/terraform.tfvars << EOF
+TFVARS_FILE="terraform/frontend/terraform.tfvars"
+if create_file_if_not_exists "$TFVARS_FILE"; then
+  cat > "$TFVARS_FILE" << EOF
 vultr_api_key = "${VULTR_API_KEY}"
 region = "${REGION}"
 plan_id = "${PLAN_ID}"
@@ -70,14 +95,16 @@ ssh_key_name = "${SSH_KEY_NAME}"
 # The default allows SSH from anywhere (not recommended for production)
 allowed_ssh_ips = ["0.0.0.0/0"]
 EOF
-
-echo -e "${GREEN}Terraform configuration created successfully.${NC}"
+  echo -e "${GREEN}Created Terraform configuration: $TFVARS_FILE${NC}"
+fi
 
 # Configure Ansible variables
 echo -e "\n${YELLOW}Setting up Ansible configuration...${NC}"
 
 # Create ansible/vars/main.yml
-cat > ansible/vars/main.yml << EOF
+ANSIBLE_MAIN_FILE="ansible/vars/main.yml"
+if create_file_if_not_exists "$ANSIBLE_MAIN_FILE"; then
+  cat > "$ANSIBLE_MAIN_FILE" << EOF
 ---
 # General configuration
 domain_name: "${DOMAIN_NAME}"
@@ -93,9 +120,13 @@ wireguard_peers:
 # Docker configuration
 docker_compose_version: "2.18.1"
 EOF
+  echo -e "${GREEN}Created Ansible configuration: $ANSIBLE_MAIN_FILE${NC}"
+fi
 
 # Create ansible/vars/secrets.yml
-cat > ansible/vars/secrets.yml << EOF
+ANSIBLE_SECRETS_FILE="ansible/vars/secrets.yml"
+if create_file_if_not_exists "$ANSIBLE_SECRETS_FILE"; then
+  cat > "$ANSIBLE_SECRETS_FILE" << EOF
 ---
 # Frontend authentication
 basic_auth: "${BASIC_AUTH_USER}:${HASHED_PASSWORD}"
@@ -104,11 +135,13 @@ basic_auth: "${BASIC_AUTH_USER}:${HASHED_PASSWORD}"
 remote_write_username: "prometheus"
 remote_write_password: "$(openssl rand -hex 16)"
 EOF
-
-echo -e "${GREEN}Ansible configuration created successfully.${NC}"
+  echo -e "${GREEN}Created Ansible secrets: $ANSIBLE_SECRETS_FILE${NC}"
+fi
 
 # Create an example inventory file
-cat > ansible/inventories/production/hosts.example.yml << EOF
+INVENTORY_EXAMPLE_FILE="ansible/inventories/production/hosts.example.yml"
+if create_file_if_not_exists "$INVENTORY_EXAMPLE_FILE"; then
+  cat > "$INVENTORY_EXAMPLE_FILE" << EOF
 ---
 all:
   children:
@@ -128,14 +161,15 @@ all:
               ansible_user: ubuntu
               ansible_ssh_private_key_file: "~/.ssh/id_rsa"
 EOF
+  echo -e "${GREEN}Created Ansible inventory example: $INVENTORY_EXAMPLE_FILE${NC}"
+fi
 
 # Configure Docker environment for frontend
 echo -e "\n${YELLOW}Setting up Docker configuration...${NC}"
 
-mkdir -p docker/frontend
-
-# Create .env file for Docker Compose
-cat > docker/frontend/.env.example << EOF
+DOCKER_ENV_FILE="docker/frontend/.env.example"
+if create_file_if_not_exists "$DOCKER_ENV_FILE"; then
+  cat > "$DOCKER_ENV_FILE" << EOF
 DOMAIN_NAME=${DOMAIN_NAME}
 ACME_EMAIL=${ACME_EMAIL}
 BASIC_AUTH=${BASIC_AUTH_USER}:${HASHED_PASSWORD}
@@ -143,20 +177,82 @@ BACKEND_PROMETHEUS_URL=http://10.8.0.2:9090/api/v1/write
 REMOTE_WRITE_USERNAME=prometheus
 REMOTE_WRITE_PASSWORD=change_me_in_production
 EOF
+  echo -e "${GREEN}Created Docker environment example: $DOCKER_ENV_FILE${NC}"
+fi
 
-echo -e "${GREEN}Docker configuration created successfully.${NC}"
+# Create or check .gitignore
+GITIGNORE_FILE=".gitignore"
+if [ ! -f "$GITIGNORE_FILE" ]; then
+  echo -e "\n${YELLOW}Creating .gitignore file...${NC}"
+  cat > "$GITIGNORE_FILE" << EOF
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+*.tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ansible
+ansible/inventories/*/hosts.yml
+ansible/vars/secrets.yml
+*.retry
+
+# SSH Keys
+*.pem
+*.key
+id_rsa*
+*.ppk
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose.override.yml
+
+# Certificates
+*.crt
+*.csr
+*.key
+*.p12
+*.pem
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Editor specific
+.vscode/
+.idea/
+*.swp
+*~
+
+# Wireguard
+wg*.conf
+
+# Other sensitive data
+**/credentials.yml
+**/passwords.yml
+**/tokens.yml
+EOF
+  echo -e "${GREEN}Created .gitignore file${NC}"
+else
+  echo -e "${YELLOW}.gitignore file already exists${NC}"
+fi
 
 # Initialize Git repository if not already initialized
 if [ ! -d .git ]; then
-    echo -e "\n${YELLOW}Initializing Git repository...${NC}"
-    git init
-    echo -e "${GREEN}Git repository initialized.${NC}"
-fi
-
-# Add files to .gitignore if not already there
-if [ ! -f .gitignore ]; then
-    cp .gitignore.example .gitignore
-    echo -e "${GREEN}Created .gitignore file.${NC}"
+  echo -e "\n${YELLOW}Initializing Git repository...${NC}"
+  git init
+  echo -e "${GREEN}Git repository initialized.${NC}"
+else
+  echo -e "\n${YELLOW}Git repository already initialized${NC}"
 fi
 
 echo -e "\n${GREEN}Setup completed successfully!${NC}"
@@ -167,6 +263,3 @@ echo -e "   cd terraform/frontend && terraform init && terraform plan -out=tfpla
 echo -e "3. Update the Ansible inventory with the actual frontend IP"
 echo -e "4. Deploy the configuration with Ansible"
 echo -e "\n${BLUE}Happy monitoring!${NC}"
-
-# Make the script executable
-chmod +x setup.sh
