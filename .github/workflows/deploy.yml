@@ -1,0 +1,173 @@
+name: Deploy Monitoring Infrastructure
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Validate Infrastructure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Terraform Format
+        run: |
+          cd terraform/frontend
+          terraform fmt -check
+          cd ../backend
+          terraform fmt -check
+
+      - name: Terraform Validate Frontend
+        run: |
+          cd terraform/frontend
+          terraform init -backend=false
+          terraform validate
+
+      - name: Terraform Validate Backend
+        run: |
+          cd terraform/backend
+          terraform init -backend=false
+          terraform validate
+
+      - name: Setup Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+
+      - name: Ansible Lint
+        run: |
+          pip install ansible-lint
+          ansible-lint ansible/playbooks/*.yml
+
+  deploy_frontend:
+    name: Deploy Frontend
+    needs: validate
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        run: |
+          cd terraform/frontend
+          terraform init
+
+      - name: Terraform Plan
+        run: |
+          cd terraform/frontend
+          terraform plan -var="do_token=${{ secrets.DO_TOKEN }}" -var="ssh_key_id=${{ secrets.DO_SSH_KEY_ID }}" -out=tfplan
+
+      - name: Terraform Apply
+        run: |
+          cd terraform/frontend
+          terraform apply -auto-approve tfplan
+
+      - name: Extract Frontend IP
+        id: extract-ip
+        run: |
+          cd terraform/frontend
+          FRONTEND_IP=$(terraform output -raw frontend_ip)
+          echo "FRONTEND_IP=$FRONTEND_IP" >> $GITHUB_ENV
+
+      - name: Setup Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+
+      - name: Update Ansible Inventory
+        run: |
+          echo "all:
+            children:
+              frontend:
+                hosts:
+                  metrics-frontend:
+                    ansible_host: ${{ env.FRONTEND_IP }}
+                    ansible_user: root
+                    ansible_ssh_private_key_file: ~/.ssh/id_rsa" > ansible/inventories/production/hosts.yml
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.FRONTEND_IP }} >> ~/.ssh/known_hosts
+
+      - name: Ansible Deploy
+        run: |
+          cd ansible
+          ansible-playbook -i inventories/production playbooks/frontend-setup.yml
+
+  deploy_backend:
+    name: Deploy Backend
+    needs: deploy_frontend
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        run: |
+          cd terraform/backend
+          terraform init
+
+      - name: Terraform Plan
+        run: |
+          cd terraform/backend
+          terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        run: |
+          cd terraform/backend
+          terraform apply -auto-approve tfplan
+
+      - name: Setup Ansible
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Ansible Deploy
+        run: |
+          cd ansible
+          ansible-playbook -i inventories/production playbooks/backend-setup.yml
