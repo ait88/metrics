@@ -1,24 +1,30 @@
 # Variables for the frontend infrastructure
 
-variable "do_token" {
-  description = "DigitalOcean API token"
+variable "vultr_api_key" {
+  description = "Vultr API key"
   type        = string
   sensitive   = true
 }
 
 variable "region" {
-  description = "DigitalOcean region"
+  description = "Vultr region"
   type        = string
-  default     = "nyc1"
+  default     = "ewr"  # New Jersey (Newark)
+}
+
+variable "plan_id" {
+  description = "Vultr plan ID"
+  type        = string
+  default     = "vc2-1c-1gb"  # 1 CPU, 1 GB RAM
 }
 
 variable "ssh_key_id" {
-  description = "ID of the SSH key to add to the droplet"
+  description = "ID of the SSH key to add to the instance"
   type        = string
 }
 
 variable "allowed_ssh_ips" {
-  description = "List of IP addresses allowed to SSH into the droplet"
+  description = "List of IP addresses allowed to SSH into the instance"
   type        = list(string)
   default     = ["0.0.0.0/0"]  # Not recommended for production
 }
