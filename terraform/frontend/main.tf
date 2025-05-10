@@ -132,5 +132,5 @@ resource "vultr_reserved_ip" "frontend" {
 
 # Output the IP address
 output "frontend_ip" {
-  value = vultr_reserved_ip.frontend.id
+  value = vultr_instance.frontend.main_ip
 }
