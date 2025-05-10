@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Git Workflow for the Metrics Project
 
 This document outlines the recommended Git workflow for managing the metrics monitoring infrastructure.
@@ -116,3 +117,6 @@ chmod +x .git/hooks/pre-commit
 ```
 
 This hook will warn you if it detects potential secrets in your commits.
+=======
+
+>>>>>>> origin/main
