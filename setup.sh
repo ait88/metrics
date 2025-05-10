@@ -1,4 +1,25 @@
-#!/bin/bash
+# Create scripts directory if it doesn't exist
+mkdir -p scripts
+
+# Make update_cloudflare.sh executable if it exists
+if [ -f "scripts/update_cloudflare.sh" ]; then
+  chmod +x scripts/update_cloudflare.sh
+fi# Configure CloudFlare (if selected)
+if [ "$USE_CLOUDFLARE" = true ]; then
+  echo -e "\n${YELLOW}Setting up CloudFlare configuration...${NC}"
+  
+  CLOUDFLARE_TFVARS_FILE="terraform/cloudflare/terraform.tfvars"
+  if create_file_if_not_exists "$CLOUDFLARE_TFVARS_FILE"; then
+    cat > "$CLOUDFLARE_TFVARS_FILE" << EOF
+cloudflare_api_token = "${CLOUDFLARE_API_TOKEN}"
+cloudflare_zone_id = "${CLOUDFLARE_ZONE_ID}"
+domain_name = "${DOMAIN_NAME}"
+frontend_ip = "FRONTEND_IP_PLACEHOLDER" # Will be updated after frontend deployment
+subdomain_prefix = "${SUBDOMAIN_PREFIX}"
+EOF
+    echo -e "${GREEN}Created CloudFlare configuration: $CLOUDFLARE_TFVARS_FILE${NC}"
+  fi
+fi#!/bin/bash
 
 # Colors for better output
 GREEN='\033[0;32m'
@@ -19,7 +40,7 @@ command -v git >/dev/null 2>&1 || { echo -e "${RED}Git is required but not insta
 # Create necessary directories (idempotent)
 echo -e "\n${YELLOW}Creating directory structure...${NC}"
 for dir in \
-  terraform/backend \
+  terraform/{frontend,backend,cloudflare} \
   ansible/roles/{frontend,backend,wireguard}/templates \
   ansible/inventories/{development,production} \
   ansible/vars \
@@ -63,8 +84,20 @@ read -p "Vultr Plan ID (default is 'vc2-1c-1gb' for 1 CPU, 1GB RAM): " PLAN_ID
 PLAN_ID=${PLAN_ID:-vc2-1c-1gb}
 
 # Domain configuration
-read -p "Domain Name for the monitoring services: " DOMAIN_NAME
+read -p "Domain Name for the monitoring services (e.g., example.com): " DOMAIN_NAME
 read -p "Email for Let's Encrypt certificates: " ACME_EMAIL
+read -p "Subdomain prefix for monitoring services (default: metrics): " SUBDOMAIN_PREFIX
+SUBDOMAIN_PREFIX=${SUBDOMAIN_PREFIX:-metrics}
+
+# CloudFlare configuration (optional)
+read -p "Do you want to configure CloudFlare DNS? (y/n): " CONFIGURE_CLOUDFLARE
+if [[ "$CONFIGURE_CLOUDFLARE" =~ ^[Yy]$ ]]; then
+  read -p "CloudFlare API Token (with Zone:DNS permissions): " CLOUDFLARE_API_TOKEN
+  read -p "CloudFlare Zone ID (found in domain dashboard): " CLOUDFLARE_ZONE_ID
+  USE_CLOUDFLARE=true
+else
+  USE_CLOUDFLARE=false
+fi
 
 # Basic authentication
 read -p "Basic Auth Username for frontend services: " BASIC_AUTH_USER
@@ -261,5 +294,11 @@ echo -e "1. Review the generated configuration files"
 echo -e "2. Deploy the frontend infrastructure with:"
 echo -e "   cd terraform/frontend && terraform init && terraform plan -out=tfplan && terraform apply tfplan"
 echo -e "3. Update the Ansible inventory with the actual frontend IP"
-echo -e "4. Deploy the configuration with Ansible"
+if [ "$USE_CLOUDFLARE" = true ]; then
+  echo -e "4. Update CloudFlare DNS records with the frontend IP:"
+  echo -e "   ./scripts/update_cloudflare.sh \$(terraform -chdir=terraform/frontend output -raw frontend_ip)"
+  echo -e "5. Deploy the configuration with Ansible"
+else
+  echo -e "4. Deploy the configuration with Ansible"
+fi
 echo -e "\n${BLUE}Happy monitoring!${NC}"

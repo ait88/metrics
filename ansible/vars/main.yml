@@ -1,0 +1,14 @@
+---
+# General configuration
+domain_name: "aitops.au"
+acme_email: "metrics@alexandrinait.com.au"
+
+# Wireguard configuration
+wireguard_address: "10.8.0.1/24"
+wireguard_port: 51820
+wireguard_peers:
+  - public_key: "TO_BE_GENERATED"
+    allowed_ips: "10.8.0.2/32"
+
+# Docker configuration
+docker_compose_version: "2.18.1"
