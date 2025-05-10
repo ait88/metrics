@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.10
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - letsencrypt:/letsencrypt
+    environment:
+      - TZ=UTC
+    networks:
+      - traefik-net
+
+  pushgateway:
+    image: prom/pushgateway:v1.6.2
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pushgateway.rule=Host(`push.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.pushgateway.entrypoints=websecure"
+      - "traefik.http.routers.pushgateway.tls.certresolver=letsencrypt"
+      - "traefik.http.services.pushgateway.loadbalancer.server.port=9091"
+      - "traefik.http.middlewares.pushgateway-auth.basicauth.users=${BASIC_AUTH}"
+      - "traefik.http.routers.pushgateway.middlewares=pushgateway-auth"
+    networks:
+      - traefik-net
+      - prometheus-net
+
+  prometheus:
+    image: prom/prometheus:v2.46.0
+    restart: unless-stopped
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.prometheus.rule=Host(`prometheus.${DOMAIN_NAME}`)"
+      - "traefik.http.routers.prometheus.entrypoints=websecure"
+      - "traefik.http.routers.prometheus.tls.certresolver=letsencrypt"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+      - "traefik.http.middlewares.prometheus-auth.basicauth.users=${BASIC_AUTH}"
+      - "traefik.http.routers.prometheus.middlewares=prometheus-auth"
+    networks:
+      - traefik-net
+      - prometheus-net
+
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.24.0
+    restart: unless-stopped
+    volumes:
+      - ./blackbox-exporter:/config
+    command:
+      - "--config.file=/config/blackbox.yml"
+    networks:
+      - prometheus-net
+
+  node-exporter:
+    image: prom/node-exporter:v1.6.1
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    networks:
+      - prometheus-net
+
+networks:
+  traefik-net:
+  prometheus-net:
+
+volumes:
+  letsencrypt:
+  prometheus_data:
