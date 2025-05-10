@@ -78,7 +78,7 @@ jobs:
       - name: Terraform Plan
         run: |
           cd terraform/frontend
-          terraform plan -var="do_token=${{ secrets.DO_TOKEN }}" -var="ssh_key_id=${{ secrets.DO_SSH_KEY_ID }}" -out=tfplan
+          terraform plan -var="vultr_api_key=${{ secrets.VULTR_API_KEY }}" -var="ssh_key_id=${{ secrets.VULTR_SSH_KEY_ID }}" -out=tfplan
 
       - name: Terraform Apply
         run: |
