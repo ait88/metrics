@@ -53,3 +53,9 @@ wg*.conf
 **/credentials.yml
 **/passwords.yml
 **/tokens.yml
+
+# Editor and backup files
+*.bak
+*.ini
+fp.ini
+*:Zone.Identifier
