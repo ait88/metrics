@@ -9,13 +9,13 @@ variable "vultr_api_key" {
 variable "region" {
   description = "Vultr region"
   type        = string
-  default     = "ewr"  # New Jersey (Newark)
+  default     = "syd"  # Sydney Australia
 }
 
 variable "plan_id" {
   description = "Vultr plan ID"
   type        = string
-  default     = "vc2-1c-1gb"  # 1 CPU, 1 GB RAM
+  default     = "vhf-1c-1gb"  # High Frequency 1 CPU, 1 GB RAM
 }
 
 variable "ssh_key_name" {
