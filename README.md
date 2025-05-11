@@ -1,4 +1,43 @@
-# Metrics - Monitoring Infrastructure
+## CloudFlare Integration
+
+This project includes automated CloudFlare DNS management:
+
+- **DNS Automation**: Automatically create and update DNS records
+- **Security Layer**: Use CloudFlare proxy for protection against DDoS and common attacks
+- **Performance**: Configure caching for static assets
+- **Easy Setup**: Integrated with the main deployment workflow
+
+### Setting Up CloudFlare Integration
+
+1. During setup, answer 'y' when asked about CloudFlare configuration
+2. Provide your CloudFlare API token (with Zone:DNS permissions)
+3. Enter your CloudFlare Zone ID
+4. After deploying the frontend, run the CloudFlare update script:
+   ```bash
+   ./scripts/update_cloudflare.sh
+   ```
+
+This will create DNS records for all monitoring services and configure the CloudFlare proxy settings.
+
+### CloudFlare Resources Created
+
+- A record for base monitoring URL: `metrics.yourdomain.com`
+- Service-specific records:
+  - `prometheus.metrics.yourdomain.com`
+  - `grafana.metrics.yourdomain.com`
+  - `push.metrics.yourdomain.com`
+  - `alertmanager.metrics.yourdomain.com`
+- Non-proxied record for WireGuard: `wg.metrics.yourdomain.com`
+- Page rules for caching static content
+- Optional firewall rule to block common malicious bots## Features
+
+- **Hierarchical Monitoring**: DNS → Cloud → Edge → Internal components
+- **Security-Focused**: Encrypted communications, authentication, and firewall rules
+- **Distributed Architecture**: Frontend and backend components for secure collection
+- **CloudFlare Integration**: Automated DNS management and added security layer
+- **Configuration as Code**: Complete infrastructure defined in Terraform and Ansible
+- **Containerized Stack**: Easy deployment and updates with Docker
+- **Comprehensive Monitoring**: Various exporters for different system types# Metrics - Monitoring Infrastructure
 
 A comprehensive monitoring infrastructure using Prometheus, Grafana, and other open-source tools to monitor various systems across multiple environments.
 
@@ -30,6 +69,7 @@ The monitoring infrastructure implements several security measures:
 - Firewall rules to restrict access to necessary ports
 - HTTPS with Let's Encrypt certificates for all web services
 - Basic authentication for web interfaces
+- CloudFlare proxy for added DDoS protection and WAF capabilities
 - Principle of least privilege for service accounts
 
 ### Communication Flow
@@ -59,7 +99,8 @@ metrics/
 │   └── git_workflow.md         # Git workflow guidelines
 ├── terraform/                  # Infrastructure as code
 │   ├── frontend/               # Vultr infrastructure for frontend
-│   └── backend/                # Backend infrastructure
+│   ├── backend/                # Backend infrastructure
+│   └── cloudflare/             # CloudFlare DNS and security configuration
 ├── ansible/                    # Configuration management
 │   ├── playbooks/              # Deployment playbooks
 │   ├── roles/                  # Reusable roles
@@ -70,6 +111,8 @@ metrics/
 │   └── backend/                # Backend Docker services
 ├── exporters/                  # Exporter configurations
 ├── dashboards/                 # Grafana dashboard JSON files
+├── scripts/                    # Utility scripts
+│   └── update_cloudflare.sh    # Script to update CloudFlare DNS
 ├── .github/workflows/          # CI/CD workflows
 ├── .gitignore                  # Git ignore patterns
 └── setup.sh                    # Automated setup script
@@ -99,6 +142,7 @@ Systems monitored:
 - Ansible
 - Git
 - Vultr account with API key
+- CloudFlare account (optional, for DNS management)
 
 ### Automated Setup
 
@@ -155,6 +199,7 @@ For guidelines on working with this Git repository, including best practices and
 - [x] Create Terraform configuration for frontend
 - [x] Set up automated deployment workflow
 - [x] Implement frontend provisioning
+- [x] Add CloudFlare integration for DNS management
 - [ ] Configure WireGuard VPN
 - [ ] Set up Docker services on frontend
 
