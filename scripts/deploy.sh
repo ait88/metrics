@@ -63,6 +63,12 @@ confirm() {
 echo -e "\n${YELLOW}Checking prerequisites...${NC}"
 command_exists terraform || { echo -e "${RED}Terraform is required but not installed. Aborting.${NC}"; exit 1; }
 command_exists git || { echo -e "${RED}Git is required but not installed. Aborting.${NC}"; exit 1; }
+command_exists ssh || { echo -e "${RED}SSH is required but not installed. Aborting.${NC}"; exit 1; }
+command_exists ansible-playbook || { echo -e "${YELLOW}Warning: ansible-playbook not found. Ansible deployment will be skipped.${NC}"; }
+command_exists curl || { echo -e "${YELLOW}Warning: curl not found. Some features may not work properly.${NC}"; }
+
+# Create scripts directory if it doesn't exist
+mkdir -p scripts
 
 # Check if Terraform files exist
 if [ ! -d "terraform/frontend" ] || [ ! -f "terraform/frontend/main.tf" ]; then
@@ -230,19 +236,101 @@ if [ "$USE_CLOUDFLARE" = true ]; then
     fi
   fi
   
+  # Check CF_NEEDS_UPDATE variable exists
+  if [ -z ${CF_NEEDS_UPDATE+x} ]; then
+    CF_NEEDS_UPDATE=true
+  fi
+  
   if [ "$CF_NEEDS_UPDATE" = true ]; then
-    if [ -f "scripts/update_cloudflare.sh" ]; then
+    # Check if update_cloudflare.sh exists, create it if not
+    if [ ! -f "scripts/update_cloudflare.sh" ]; then
+      echo -e "${YELLOW}CloudFlare update script not found. Creating it...${NC}"
+      cat > "scripts/update_cloudflare.sh" << 'EOFSCRIPT'
+#!/bin/bash
+
+# Colors for better output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}====================================${NC}"
+echo -e "${BLUE}Update CloudFlare DNS Records${NC}"
+echo -e "${BLUE}====================================${NC}"
+
+# Check if frontend IP is provided
+if [ -z "$1" ]; then
+  # Try to get it from Terraform
+  FRONTEND_IP=$(cd terraform/frontend && terraform output -raw frontend_ip 2>/dev/null)
+  
+  if [ -z "$FRONTEND_IP" ]; then
+    echo -e "${RED}Error: Frontend IP not provided and could not be retrieved from Terraform.${NC}"
+    echo -e "${YELLOW}Usage: $0 <frontend_ip>${NC}"
+    exit 1
+  fi
+else
+  FRONTEND_IP="$1"
+fi
+
+echo -e "${YELLOW}Using Frontend IP: ${FRONTEND_IP}${NC}"
+
+# Check if CloudFlare configuration exists
+if [ ! -d "terraform/cloudflare" ] || [ ! -f "terraform/cloudflare/terraform.tfvars" ]; then
+  echo -e "${RED}Error: CloudFlare configuration not found.${NC}"
+  echo -e "${YELLOW}Make sure you've run setup.sh with CloudFlare configuration enabled.${NC}"
+  exit 1
+fi
+
+# Update the CloudFlare terraform.tfvars file with the frontend IP
+sed -i "s/FRONTEND_IP_PLACEHOLDER/${FRONTEND_IP}/" terraform/cloudflare/terraform.tfvars || {
+  echo -e "${RED}Error: Failed to update CloudFlare terraform.tfvars with frontend IP.${NC}"
+  exit 1
+}
+
+# Initialize and apply CloudFlare configuration
+cd terraform/cloudflare || {
+  echo -e "${RED}Error: CloudFlare Terraform directory not found.${NC}"
+  exit 1
+}
+
+echo -e "${YELLOW}Initializing Terraform...${NC}"
+terraform init || {
+  echo -e "${RED}Error: Failed to initialize Terraform.${NC}"
+  exit 1
+}
+
+echo -e "${YELLOW}Applying CloudFlare configuration...${NC}"
+terraform apply -auto-approve || {
+  echo -e "${RED}Error: Failed to apply CloudFlare configuration.${NC}"
+  exit 1
+}
+
+echo -e "${GREEN}CloudFlare DNS records updated successfully!${NC}"
+
+# Display the URLs
+echo -e "\n${YELLOW}Monitoring URLs:${NC}"
+terraform output | sed 's/^/  /'
+
+cd ../..
+
+echo -e "\n${YELLOW}Note: DNS propagation may take up to 5 minutes with CloudFlare.${NC}"
+echo -e "${YELLOW}You can verify the DNS records in the CloudFlare dashboard.${NC}"
+EOFSCRIPT
       chmod +x scripts/update_cloudflare.sh
-      ./scripts/update_cloudflare.sh "$FRONTEND_IP" || { 
-        echo -e "${RED}CloudFlare DNS update failed.${NC}"; 
-        echo -e "${YELLOW}You can try running it manually:${NC}";
-        echo -e "   ./scripts/update_cloudflare.sh $FRONTEND_IP";
-        # Continue despite error
-      }
-    else
-      echo -e "${RED}CloudFlare update script not found.${NC}"
-      echo -e "${YELLOW}You can manually update the CloudFlare DNS records to point to: ${FRONTEND_IP}${NC}"
+      echo -e "${GREEN}CloudFlare update script created.${NC}"
     fi
+
+    chmod +x scripts/update_cloudflare.sh
+    ./scripts/update_cloudflare.sh "$FRONTEND_IP" || { 
+      echo -e "${RED}CloudFlare DNS update failed.${NC}"; 
+      echo -e "${YELLOW}You can try running it manually:${NC}";
+      echo -e "   ./scripts/update_cloudflare.sh $FRONTEND_IP";
+      # Continue despite error
+    }
+  else
+    echo -e "${RED}CloudFlare update script not found.${NC}"
+    echo -e "${YELLOW}You can manually update the CloudFlare DNS records to point to: ${FRONTEND_IP}${NC}"
   fi
 fi
 
@@ -267,15 +355,16 @@ if [ -f "ansible/playbooks/frontend-setup.yml" ]; then
   # Check SSH connectivity before running Ansible
   echo -e "${YELLOW}Testing SSH connectivity to frontend...${NC}"
   SSH_CONNECTED=false
-  SSH_RETRIES=3
+  SSH_RETRIES=6  # Increased from 3 to 6
+  SSH_TIMEOUT=15 # Increased from 10 to 15
   
   for i in $(seq 1 $SSH_RETRIES); do
-    if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no root@$FRONTEND_IP "echo SSH connection successful" &>/dev/null; then
+    if ssh -o ConnectTimeout=$SSH_TIMEOUT -o BatchMode=yes -o StrictHostKeyChecking=no root@$FRONTEND_IP "echo SSH connection successful" &>/dev/null; then
       SSH_CONNECTED=true
       break
     else
-      echo -e "${YELLOW}SSH connection attempt $i of $SSH_RETRIES failed. Waiting 5 seconds...${NC}"
-      sleep 5
+      echo -e "${YELLOW}SSH connection attempt $i of $SSH_RETRIES failed. Waiting 10 seconds...${NC}"
+      sleep 10  # Increased from 5 to 10 seconds
     fi
   done
   
