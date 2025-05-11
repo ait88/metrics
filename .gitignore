@@ -55,6 +55,7 @@ wg*.conf
 **/tokens.yml
 
 # Editor and backup files
+*.backup
 *.bak
 *.ini
 fp.ini
