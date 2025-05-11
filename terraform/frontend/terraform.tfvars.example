@@ -7,8 +7,7 @@ plan_id = "vc2-1c-1gb"  # 1 CPU, 1 GB RAM - adjust based on your needs
 ssh_key_name = "metrics@alexandrinait.com.au"  # The name of your SSH key in Vultr
 
 # List of IP addresses allowed to SSH into the instance
-# Replace with your own IP(s) for production
-allowed_ssh_ips = [
-  "203.0.113.1/32",  # Example IP address
-  "198.51.100.0/24"  # Example IP range
-]
+# It's recommended to restrict this to your own IP address(es)
+# Examples:
+# allowed_ssh_ips = ["203.0.113.1/32"]                  # Single IP
+# allowed_ssh_ips = ["203.0.113.1/32", "198.51.100.0/24"] # Multiple IPs/ranges

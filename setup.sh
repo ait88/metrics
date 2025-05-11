@@ -1,25 +1,4 @@
-# Create scripts directory if it doesn't exist
-mkdir -p scripts
-
-# Make update_cloudflare.sh executable if it exists
-if [ -f "scripts/update_cloudflare.sh" ]; then
-  chmod +x scripts/update_cloudflare.sh
-fi# Configure CloudFlare (if selected)
-if [ "$USE_CLOUDFLARE" = true ]; then
-  echo -e "\n${YELLOW}Setting up CloudFlare configuration...${NC}"
-  
-  CLOUDFLARE_TFVARS_FILE="terraform/cloudflare/terraform.tfvars"
-  if create_file_if_not_exists "$CLOUDFLARE_TFVARS_FILE"; then
-    cat > "$CLOUDFLARE_TFVARS_FILE" << EOF
-cloudflare_api_token = "${CLOUDFLARE_API_TOKEN}"
-cloudflare_zone_id = "${CLOUDFLARE_ZONE_ID}"
-domain_name = "${DOMAIN_NAME}"
-frontend_ip = "FRONTEND_IP_PLACEHOLDER" # Will be updated after frontend deployment
-subdomain_prefix = "${SUBDOMAIN_PREFIX}"
-EOF
-    echo -e "${GREEN}Created CloudFlare configuration: $CLOUDFLARE_TFVARS_FILE${NC}"
-  fi
-fi#!/bin/bash
+#!/bin/bash
 
 # Colors for better output
 GREEN='\033[0;32m'
@@ -71,6 +50,41 @@ create_file_if_not_exists() {
   fi
   return 0
 }
+
+# Detect current external IP for improved security
+echo -e "\n${YELLOW}Detecting your current external IP address...${NC}"
+CURRENT_IP=""
+for IP_SERVICE in "ifconfig.me" "ipinfo.io/ip" "api.ipify.org"; do
+  if CURRENT_IP=$(curl -s --max-time 5 "$IP_SERVICE"); then
+    if [[ $CURRENT_IP =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      echo -e "Detected external IP: ${GREEN}${CURRENT_IP}${NC}"
+      break
+    fi
+  fi
+done
+
+if [ -z "$CURRENT_IP" ]; then
+  echo -e "${YELLOW}Could not detect external IP. Will use 0.0.0.0/0 (allow from anywhere) as default.${NC}"
+  DEFAULT_SSH_IPS="0.0.0.0/0"
+else
+  DEFAULT_SSH_IPS="${CURRENT_IP}/32"
+fi
+
+read -p "IP addresses allowed to SSH into the instance (default: ${DEFAULT_SSH_IPS}): " ALLOWED_SSH_IPS
+ALLOWED_SSH_IPS=${ALLOWED_SSH_IPS:-$DEFAULT_SSH_IPS}
+
+# Convert single IP to array format for Terraform
+if [[ "$ALLOWED_SSH_IPS" != *","* ]]; then
+  ALLOWED_SSH_IPS_TF="[\"${ALLOWED_SSH_IPS}\"]"
+else
+  # Convert comma-separated list to Terraform array format
+  IPS=$(echo $ALLOWED_SSH_IPS | tr ',' ' ')
+  ALLOWED_SSH_IPS_TF="["
+  for IP in $IPS; do
+    ALLOWED_SSH_IPS_TF="${ALLOWED_SSH_IPS_TF}\"${IP}\", "
+  done
+  ALLOWED_SSH_IPS_TF="${ALLOWED_SSH_IPS_TF%,*}]"
+fi
 
 # Collect variables
 echo -e "\n${YELLOW}Please provide the following information for configuration:${NC}"
@@ -125,8 +139,7 @@ plan_id = "${PLAN_ID}"
 ssh_key_name = "${SSH_KEY_NAME}"
 
 # List of IP addresses allowed to SSH into the instance
-# The default allows SSH from anywhere (not recommended for production)
-allowed_ssh_ips = ["0.0.0.0/0"]
+allowed_ssh_ips = ${ALLOWED_SSH_IPS_TF}
 EOF
   echo -e "${GREEN}Created Terraform configuration: $TFVARS_FILE${NC}"
 fi
@@ -213,6 +226,23 @@ EOF
   echo -e "${GREEN}Created Docker environment example: $DOCKER_ENV_FILE${NC}"
 fi
 
+# Configure CloudFlare (if selected)
+if [ "$USE_CLOUDFLARE" = true ]; then
+  echo -e "\n${YELLOW}Setting up CloudFlare configuration...${NC}"
+  
+  CLOUDFLARE_TFVARS_FILE="terraform/cloudflare/terraform.tfvars"
+  if create_file_if_not_exists "$CLOUDFLARE_TFVARS_FILE"; then
+    cat > "$CLOUDFLARE_TFVARS_FILE" << EOF
+cloudflare_api_token = "${CLOUDFLARE_API_TOKEN}"
+cloudflare_zone_id = "${CLOUDFLARE_ZONE_ID}"
+domain_name = "${DOMAIN_NAME}"
+frontend_ip = "FRONTEND_IP_PLACEHOLDER" # Will be updated after frontend deployment
+subdomain_prefix = "${SUBDOMAIN_PREFIX}"
+EOF
+    echo -e "${GREEN}Created CloudFlare configuration: $CLOUDFLARE_TFVARS_FILE${NC}"
+  fi
+fi
+
 # Create or check .gitignore
 GITIGNORE_FILE=".gitignore"
 if [ ! -f "$GITIGNORE_FILE" ]; then
@@ -288,17 +318,27 @@ else
   echo -e "\n${YELLOW}Git repository already initialized${NC}"
 fi
 
+# Make scripts executable if they exist
+mkdir -p scripts
+if [ -f "scripts/update_cloudflare.sh" ]; then
+  chmod +x scripts/update_cloudflare.sh
+fi
+if [ -f "scripts/deploy.sh" ]; then
+  chmod +x scripts/deploy.sh
+fi
+
 echo -e "\n${GREEN}Setup completed successfully!${NC}"
 echo -e "${YELLOW}Next steps:${NC}"
 echo -e "1. Review the generated configuration files"
-echo -e "2. Deploy the frontend infrastructure with:"
-echo -e "   cd terraform/frontend && terraform init && terraform plan -out=tfplan && terraform apply tfplan"
-echo -e "3. Update the Ansible inventory with the actual frontend IP"
+echo -e "2. Run the deployment script to deploy the infrastructure:"
+echo -e "   ./scripts/deploy.sh"
+echo -e "   or follow the manual steps:"
+echo -e "   a. Deploy the frontend infrastructure with Terraform"
+echo -e "   b. Update the Ansible inventory with the actual frontend IP"
 if [ "$USE_CLOUDFLARE" = true ]; then
-  echo -e "4. Update CloudFlare DNS records with the frontend IP:"
-  echo -e "   ./scripts/update_cloudflare.sh \$(terraform -chdir=terraform/frontend output -raw frontend_ip)"
-  echo -e "5. Deploy the configuration with Ansible"
+  echo -e "   c. Update CloudFlare DNS records with the frontend IP"
+  echo -e "   d. Deploy the configuration with Ansible"
 else
-  echo -e "4. Deploy the configuration with Ansible"
+  echo -e "   c. Deploy the configuration with Ansible"
 fi
 echo -e "\n${BLUE}Happy monitoring!${NC}"

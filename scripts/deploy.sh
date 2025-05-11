@@ -1,0 +1,320 @@
+#!/bin/bash
+
+# Colors for better output
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Default settings
+FORCE=false
+SKIP_CONFIRMATION=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -f|--force)
+      FORCE=true
+      SKIP_CONFIRMATION=true
+      shift
+      ;;
+    -y|--yes)
+      SKIP_CONFIRMATION=true
+      shift
+      ;;
+    -h|--help)
+      echo "Usage: $0 [options]"
+      echo "Options:"
+      echo "  -f, --force    Force deployment, skip confirmations and destroy existing infrastructure"
+      echo "  -y, --yes      Skip all confirmations but don't destroy existing infrastructure"
+      echo "  -h, --help     Show this help message"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Use -h or --help for usage information"
+      exit 1
+      ;;
+  esac
+done
+
+echo -e "${BLUE}====================================${NC}"
+echo -e "${BLUE}Metrics Monitoring Infrastructure Deployment${NC}"
+echo -e "${BLUE}====================================${NC}"
+
+# Function to check if a command exists
+command_exists() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+# Function to ask for confirmation
+confirm() {
+  if [ "$SKIP_CONFIRMATION" = true ]; then
+    return 0
+  fi
+  
+  read -p "$1 [y/N] " -n 1 -r
+  echo
+  [[ $REPLY =~ ^[Yy]$ ]]
+}
+
+# Check prerequisites
+echo -e "\n${YELLOW}Checking prerequisites...${NC}"
+command_exists terraform || { echo -e "${RED}Terraform is required but not installed. Aborting.${NC}"; exit 1; }
+command_exists git || { echo -e "${RED}Git is required but not installed. Aborting.${NC}"; exit 1; }
+
+# Check if Terraform files exist
+if [ ! -d "terraform/frontend" ] || [ ! -f "terraform/frontend/main.tf" ]; then
+  echo -e "${RED}Terraform frontend configuration not found. Make sure to run setup.sh first.${NC}"
+  exit 1
+fi
+
+# Check for CloudFlare integration
+USE_CLOUDFLARE=false
+if [ -d "terraform/cloudflare" ] && [ -f "terraform/cloudflare/terraform.tfvars" ]; then
+  USE_CLOUDFLARE=true
+  echo -e "${YELLOW}CloudFlare configuration detected. Will update DNS records after deployment.${NC}"
+fi
+
+# Check for existing infrastructure
+echo -e "\n${YELLOW}Checking for existing infrastructure...${NC}"
+cd terraform/frontend || { echo -e "${RED}Could not access terraform/frontend directory.${NC}"; exit 1; }
+
+# Initialize Terraform without applying anything
+terraform init -reconfigure > /dev/null || { echo -e "${RED}Terraform initialization failed.${NC}"; exit 1; }
+
+# Check if state exists and has resources
+EXISTING_INFRASTRUCTURE=false
+if [ -f ".terraform/terraform.tfstate" ] || [ -f "terraform.tfstate" ]; then
+  # Check if there are actual resources in the state
+  RESOURCE_COUNT=$(terraform state list 2>/dev/null | wc -l)
+  if [ "$RESOURCE_COUNT" -gt 0 ]; then
+    EXISTING_INFRASTRUCTURE=true
+    echo -e "${YELLOW}Existing infrastructure detected.${NC}"
+    
+    # Get current frontend IP if available
+    CURRENT_IP=$(terraform output -raw frontend_ip 2>/dev/null)
+    if [ -n "$CURRENT_IP" ]; then
+      echo -e "${YELLOW}Current frontend IP: ${CURRENT_IP}${NC}"
+    fi
+  fi
+fi
+
+# If existing infrastructure found and not forcing, ask what to do
+if [ "$EXISTING_INFRASTRUCTURE" = true ] && [ "$FORCE" != true ]; then
+  echo -e "\n${YELLOW}What would you like to do with the existing infrastructure?${NC}"
+  echo -e "1. Continue with existing infrastructure (update configuration)"
+  echo -e "2. Destroy existing infrastructure and create new"
+  echo -e "3. Abort deployment"
+  
+  if [ "$SKIP_CONFIRMATION" = true ]; then
+    CHOICE=1
+  else
+    read -p "Enter your choice [1-3]: " CHOICE
+  fi
+  
+  case $CHOICE in
+    1)
+      echo -e "${GREEN}Continuing with existing infrastructure...${NC}"
+      ;;
+    2)
+      echo -e "${YELLOW}Destroying existing infrastructure...${NC}"
+      terraform destroy -auto-approve || { 
+        echo -e "${RED}Failed to destroy infrastructure.${NC}"; 
+        if ! confirm "Continue anyway?"; then
+          echo -e "${YELLOW}Deployment aborted.${NC}";
+          exit 1;
+        fi
+      }
+      ;;
+    3|*)
+      echo -e "${YELLOW}Deployment aborted.${NC}"
+      exit 0
+      ;;
+  esac
+elif [ "$EXISTING_INFRASTRUCTURE" = true ] && [ "$FORCE" = true ]; then
+  echo -e "${YELLOW}Force flag set. Destroying existing infrastructure...${NC}"
+  terraform destroy -auto-approve || {
+    echo -e "${RED}Failed to destroy infrastructure with force flag. This is unusual.${NC}"; 
+    echo -e "${RED}Check for permission issues or locked state files.${NC}";
+    exit 1;
+  }
+fi
+
+# Prepare for deployment
+echo -e "\n${YELLOW}Starting deployment process...${NC}"
+
+# Step 1: Deploy frontend infrastructure
+echo -e "\n${BLUE}Step 1: Deploying frontend infrastructure...${NC}"
+
+echo -e "${YELLOW}Creating deployment plan...${NC}"
+terraform plan -out=tfplan || { echo -e "${RED}Terraform plan failed.${NC}"; exit 1; }
+
+# Check if there are any changes to apply
+PLAN_CHANGES=$(terraform show -no-color tfplan | grep -E '^\s*[~+-]' | wc -l)
+if [ "$PLAN_CHANGES" -eq 0 ]; then
+  echo -e "${GREEN}No changes to apply. Infrastructure is up to date.${NC}"
+else
+  echo -e "${YELLOW}Applying infrastructure changes...${NC}"
+  terraform apply tfplan || { echo -e "${RED}Terraform apply failed.${NC}"; exit 1; }
+fi
+
+# Get the frontend IP
+FRONTEND_IP=$(terraform output -raw frontend_ip 2>/dev/null)
+if [ -z "$FRONTEND_IP" ]; then
+  echo -e "${RED}Could not get frontend IP from Terraform output.${NC}"
+  exit 1
+fi
+
+echo -e "${GREEN}Frontend infrastructure deployed successfully with IP: ${FRONTEND_IP}${NC}"
+
+# Return to project root
+cd ../..
+
+# Step 2: Update Ansible inventory
+echo -e "\n${BLUE}Step 2: Updating Ansible inventory...${NC}"
+mkdir -p ansible/inventories/production
+INVENTORY_FILE="ansible/inventories/production/hosts.yml"
+
+# Check if inventory file exists and has the same IP
+INVENTORY_EXISTS=false
+INVENTORY_NEEDS_UPDATE=true
+if [ -f "$INVENTORY_FILE" ]; then
+  INVENTORY_EXISTS=true
+  CURRENT_INVENTORY_IP=$(grep ansible_host "$INVENTORY_FILE" | head -1 | awk -F'"' '{print $2}')
+  
+  if [ "$CURRENT_INVENTORY_IP" = "$FRONTEND_IP" ]; then
+    echo -e "${GREEN}Ansible inventory already up to date.${NC}"
+    INVENTORY_NEEDS_UPDATE=false
+  fi
+fi
+
+if [ "$INVENTORY_NEEDS_UPDATE" = true ]; then
+  cat > "$INVENTORY_FILE" << EOF
+---
+all:
+  children:
+    frontend:
+      hosts:
+        metrics-frontend:
+          ansible_host: "${FRONTEND_IP}"
+          ansible_user: root
+          ansible_ssh_private_key_file: "~/.ssh/id_rsa"  # Update with your key path
+    
+    backend:
+      children:
+        prometheus:
+          hosts:
+            metrics-prometheus:
+              ansible_host: 192.168.1.10  # Update with your actual IP
+              ansible_user: ubuntu
+              ansible_ssh_private_key_file: "~/.ssh/id_rsa"
+EOF
+
+  echo -e "${GREEN}Ansible inventory updated successfully.${NC}"
+fi
+
+# Step 3: Update CloudFlare DNS (if configured)
+if [ "$USE_CLOUDFLARE" = true ]; then
+  echo -e "\n${BLUE}Step 3: Updating CloudFlare DNS records...${NC}"
+  
+  # Check if we need to update CloudFlare
+  CF_NEEDS_UPDATE=true
+  if [ -f "terraform/cloudflare/terraform.tfstate" ]; then
+    # Get current IP from CloudFlare config
+    CF_CURRENT_IP=$(grep -A1 "frontend_ip" terraform/cloudflare/terraform.tfvars | tail -1 | awk -F'"' '{print $2}')
+    if [ "$CF_CURRENT_IP" = "$FRONTEND_IP" ] && [ "$CF_CURRENT_IP" != "FRONTEND_IP_PLACEHOLDER" ]; then
+      echo -e "${GREEN}CloudFlare DNS records already up to date.${NC}"
+      CF_NEEDS_UPDATE=false
+    fi
+  fi
+  
+  if [ "$CF_NEEDS_UPDATE" = true ]; then
+    if [ -f "scripts/update_cloudflare.sh" ]; then
+      chmod +x scripts/update_cloudflare.sh
+      ./scripts/update_cloudflare.sh "$FRONTEND_IP" || { 
+        echo -e "${RED}CloudFlare DNS update failed.${NC}"; 
+        echo -e "${YELLOW}You can try running it manually:${NC}";
+        echo -e "   ./scripts/update_cloudflare.sh $FRONTEND_IP";
+        # Continue despite error
+      }
+    else
+      echo -e "${RED}CloudFlare update script not found.${NC}"
+      echo -e "${YELLOW}You can manually update the CloudFlare DNS records to point to: ${FRONTEND_IP}${NC}"
+    fi
+  fi
+fi
+
+# Step 4: Wait for DNS propagation if using CloudFlare
+if [ "$USE_CLOUDFLARE" = true ] && [ "$CF_NEEDS_UPDATE" = true ]; then
+  echo -e "\n${BLUE}Step 4: Waiting for DNS propagation...${NC}"
+  echo -e "${YELLOW}This may take a few minutes. Press Enter to continue, or wait 30 seconds.${NC}"
+  
+  if [ "$SKIP_CONFIRMATION" = true ]; then
+    echo -e "${YELLOW}Waiting 30 seconds for DNS propagation...${NC}"
+    sleep 30
+  else
+    read -t 30 -p ""
+  fi
+fi
+
+# Step 5: Deploy with Ansible (if Ansible playbooks exist)
+echo -e "\n${BLUE}Step 5: Deploying configuration with Ansible...${NC}"
+if [ -f "ansible/playbooks/frontend-setup.yml" ]; then
+  echo -e "${YELLOW}Running Ansible playbook for frontend setup...${NC}"
+  
+  # Check SSH connectivity before running Ansible
+  echo -e "${YELLOW}Testing SSH connectivity to frontend...${NC}"
+  SSH_CONNECTED=false
+  SSH_RETRIES=3
+  
+  for i in $(seq 1 $SSH_RETRIES); do
+    if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no root@$FRONTEND_IP "echo SSH connection successful" &>/dev/null; then
+      SSH_CONNECTED=true
+      break
+    else
+      echo -e "${YELLOW}SSH connection attempt $i of $SSH_RETRIES failed. Waiting 5 seconds...${NC}"
+      sleep 5
+    fi
+  done
+  
+  if [ "$SSH_CONNECTED" = true ]; then
+    ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml || {
+      echo -e "${RED}Ansible deployment failed.${NC}";
+      echo -e "${YELLOW}You may need to wait a bit longer for the server to be ready.${NC}";
+      echo -e "${YELLOW}You can try running the playbook manually:${NC}";
+      echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml";
+    }
+  else
+    echo -e "${RED}SSH connection to frontend failed after $SSH_RETRIES attempts. Server may not be ready yet.${NC}"
+    echo -e "${YELLOW}Wait a few minutes and then run:${NC}"
+    echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml"
+  fi
+else
+  echo -e "${YELLOW}Ansible playbooks not found. Skipping Ansible deployment.${NC}"
+  echo -e "${YELLOW}You will need to set up the services manually or create Ansible playbooks.${NC}"
+fi
+
+# Final status
+echo -e "\n${GREEN}Deployment process completed!${NC}"
+echo -e "${YELLOW}Frontend server: ${FRONTEND_IP}${NC}"
+
+if [ "$USE_CLOUDFLARE" = true ]; then
+  # Try to get domain info from CloudFlare config
+  DOMAIN_NAME=$(grep "domain_name" terraform/cloudflare/terraform.tfvars | cut -d'"' -f2 || echo "your-domain.com")
+  SUBDOMAIN_PREFIX=$(grep "subdomain_prefix" terraform/cloudflare/terraform.tfvars | cut -d'"' -f2 || echo "metrics")
+  
+  echo -e "${YELLOW}Monitoring URLs:${NC}"
+  echo -e "  - Main: https://${SUBDOMAIN_PREFIX}.${DOMAIN_NAME}"
+  echo -e "  - Prometheus: https://prometheus.${SUBDOMAIN_PREFIX}.${DOMAIN_NAME}"
+  echo -e "  - Grafana: https://grafana.${SUBDOMAIN_PREFIX}.${DOMAIN_NAME}"
+  echo -e "  - Alertmanager: https://alertmanager.${SUBDOMAIN_PREFIX}.${DOMAIN_NAME}"
+fi
+
+echo -e "\n${BLUE}Next Steps:${NC}"
+echo -e "1. If not using Ansible, manually set up services on the frontend server"
+echo -e "2. Set up the backend monitoring infrastructure on your local network"
+echo -e "3. Configure WireGuard VPN between frontend and backend"
+echo -e "4. Deploy node exporters to your target systems"
+echo -e "\n${BLUE}Happy monitoring!${NC}"

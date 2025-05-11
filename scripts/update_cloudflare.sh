@@ -27,6 +27,13 @@ fi
 
 echo -e "${YELLOW}Using Frontend IP: ${FRONTEND_IP}${NC}"
 
+# Check if CloudFlare configuration exists
+if [ ! -d "terraform/cloudflare" ] || [ ! -f "terraform/cloudflare/terraform.tfvars" ]; then
+  echo -e "${RED}Error: CloudFlare configuration not found.${NC}"
+  echo -e "${YELLOW}Make sure you've run setup.sh with CloudFlare configuration enabled.${NC}"
+  exit 1
+fi
+
 # Update the CloudFlare terraform.tfvars file with the frontend IP
 sed -i "s/FRONTEND_IP_PLACEHOLDER/${FRONTEND_IP}/" terraform/cloudflare/terraform.tfvars || {
   echo -e "${RED}Error: Failed to update CloudFlare terraform.tfvars with frontend IP.${NC}"
@@ -58,3 +65,6 @@ echo -e "\n${YELLOW}Monitoring URLs:${NC}"
 terraform output | sed 's/^/  /'
 
 cd ../..
+
+echo -e "\n${YELLOW}Note: DNS propagation may take up to 5 minutes with CloudFlare.${NC}"
+echo -e "${YELLOW}You can verify the DNS records in the CloudFlare dashboard.${NC}"
