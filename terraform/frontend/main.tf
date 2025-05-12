@@ -141,12 +141,23 @@ resource "vultr_instance" "frontend" {
   tags = ["metrics", "frontend"]
 }
 
-# Create a reserved IP (equivalent to floating IP in Vultr)
+# Create a reserved IP (equivalent to floating IP in Vultr) if enabled
 resource "vultr_reserved_ip" "frontend" {
+  count            = var.use_reserved_ip ? 1 : 0
   region           = var.region
   ip_type          = "v4"
   label            = "metrics-frontend-ip"
   instance_id      = vultr_instance.frontend.id
+}
+
+# Output the IP address
+output "frontend_ip" {
+  value = var.use_reserved_ip ? vultr_reserved_ip.frontend[0].ip : vultr_instance.frontend.main_ip
+}
+
+# Output the instance ID for API operations if needed
+output "instance_id" {
+  value = vultr_instance.frontend.id
 }
 
 # Output the IP address

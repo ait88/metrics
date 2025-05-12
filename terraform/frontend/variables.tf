@@ -23,6 +23,12 @@ variable "ssh_key_name" {
   type        = string
 }
 
+variable "use_reserved_ip" {
+  description = "Whether to create and use a reserved IP address"
+  type        = bool
+  default     = false
+}
+
 variable "allowed_ssh_ips" {
   description = "List of IP addresses allowed to SSH into the instance"
   type        = list(string)

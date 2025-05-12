@@ -123,6 +123,18 @@ else
   USE_CLOUDFLARE=false
 fi
 
+# Reserved IP configuration (optional)
+read -p "Do you want to use a reserved IP address (+$3/month)? (y/N): " USE_RESERVED_IP
+if [[ "$USE_RESERVED_IP" =~ ^[Yy]$ ]]; then
+  USE_RESERVED_IP=true
+  echo -e "${YELLOW}Reserved IP will be used. This provides a static IP even if the VM is recreated.${NC}"
+  echo -e "${YELLOW}Note: Using a reserved IP may require VM reboot during initial setup.${NC}"
+else
+  USE_RESERVED_IP=false
+  echo -e "${YELLOW}Reserved IP will not be used. If the VM is recreated, CloudFlare DNS will be updated with the new IP.${NC}"
+  echo -e "${YELLOW}Note: You may need to manually update WireGuard configurations if the IP changes.${NC}"
+fi
+
 # Basic authentication
 read -p "Basic Auth Username for frontend services: " BASIC_AUTH_USER
 read -s -p "Basic Auth Password for frontend services: " BASIC_AUTH_PASS
@@ -147,6 +159,7 @@ vultr_api_key = "${VULTR_API_KEY}"
 region = "${REGION}"
 plan_id = "${PLAN_ID}"
 ssh_key_name = "${SSH_KEY_NAME}"
+use_reserved_ip = ${USE_RESERVED_IP}
 
 # List of IP addresses allowed to SSH into the instance
 allowed_ssh_ips = ${ALLOWED_SSH_IPS_TF}

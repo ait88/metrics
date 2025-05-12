@@ -368,38 +368,59 @@ echo -e "\n${BLUE}Step 5: Deploying configuration with Ansible...${NC}"
 if [ -f "ansible/playbooks/frontend-setup.yml" ]; then
   echo -e "${YELLOW}Running Ansible playbook for frontend setup...${NC}"
   
-  # Check SSH connectivity before running Ansible
+  # Check if we're using a reserved IP
+  USING_RESERVED_IP=false
+  if grep -q "use_reserved_ip = true" terraform/frontend/terraform.tfvars 2>/dev/null; then
+    USING_RESERVED_IP=true
+    echo -e "${YELLOW}Using a reserved IP address. The VM may need extra time to initialize.${NC}"
+    
+    # Add additional wait time for VM with reserved IP to fully initialize
+    if [ "$EXISTING_INFRASTRUCTURE" = false ]; then
+      echo -e "${YELLOW}Waiting 60 seconds for initial VM configuration...${NC}"
+      sleep 60
+    fi
+  fi
+
+  # Enhanced SSH connectivity check
   echo -e "${YELLOW}Testing SSH connectivity to frontend...${NC}"
   SSH_CONNECTED=false
-  SSH_RETRIES=6  # Increased from 3 to 6
-  SSH_TIMEOUT=15 # Increased from 10 to 15
-  
+  SSH_RETRIES=10
+  SSH_TIMEOUT=20
+
+  # Additional retries for reserved IP
+  if [ "$USING_RESERVED_IP" = true ]; then
+    SSH_RETRIES=15  # More retries for reserved IP case
+  fi
+
   for i in $(seq 1 $SSH_RETRIES); do
     if ssh -o ConnectTimeout=$SSH_TIMEOUT -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "echo SSH connection successful" &>/dev/null; then
       SSH_CONNECTED=true
       break
     else
-      echo -e "${YELLOW}SSH connection attempt $i of $SSH_RETRIES failed. Waiting 10 seconds...${NC}"
-      sleep 10  # Increased from 5 to 10 seconds
+      echo -e "${YELLOW}SSH connection attempt $i of $SSH_RETRIES failed.${NC}"
+      
+      # If using reserved IP and this is the halfway point, try to reboot via API
+      if [ "$USING_RESERVED_IP" = true ] && [ $i -eq 7 ]; then
+        echo -e "${YELLOW}Attempting to reboot the VM via Vultr API...${NC}"
+        # Fetch the API key from terraform.tfvars
+        VULTR_API_KEY=$(grep vultr_api_key terraform/frontend/terraform.tfvars | cut -d'"' -f2)
+        INSTANCE_ID=$(cd terraform/frontend && terraform output -raw instance_id 2>/dev/null)
+        
+        if [ -n "$VULTR_API_KEY" ] && [ -n "$INSTANCE_ID" ]; then
+          curl -s -X POST "https://api.vultr.com/v2/instances/${INSTANCE_ID}/reboot" \
+            -H "Authorization: Bearer ${VULTR_API_KEY}" \
+            -H "Content-Type: application/json"
+          echo -e "${YELLOW}VM reboot requested. Waiting 60 seconds...${NC}"
+          sleep 60  # Wait for reboot to complete
+        else
+          echo -e "${RED}Could not find Vultr API key or instance ID for reboot.${NC}"
+        fi
+      fi
+      
+      echo -e "${YELLOW}Waiting 15 seconds before next attempt...${NC}"
+      sleep 15
     fi
   done
-  
-  if [ "$SSH_CONNECTED" = true ]; then
-    ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml --private-key="${SSH_KEY_PATH}" || {
-      echo -e "${RED}Ansible deployment failed.${NC}";
-      echo -e "${YELLOW}You may need to wait a bit longer for the server to be ready.${NC}";
-      echo -e "${YELLOW}You can try running the playbook manually:${NC}";
-      echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml";
-    }
-  else
-    echo -e "${RED}SSH connection to frontend failed after $SSH_RETRIES attempts. Server may not be ready yet.${NC}"
-    echo -e "${YELLOW}Wait a few minutes and then run:${NC}"
-    echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml"
-  fi
-else
-  echo -e "${YELLOW}Ansible playbooks not found. Skipping Ansible deployment.${NC}"
-  echo -e "${YELLOW}You will need to set up the services manually or create Ansible playbooks.${NC}"
-fi
 
 # Final status
 echo -e "\n${GREEN}Deployment process completed!${NC}"
