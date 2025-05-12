@@ -1,4 +1,10 @@
-#!/bin/bash
+# Check if SSH_KEY_PATH is set
+if [ -z "${SSH_KEY_PATH}" ]; then
+  echo -e "${YELLOW}SSH_KEY_PATH not set. Using default ~/.ssh/id_rsa${NC}"
+  SSH_KEY_PATH="$HOME/.ssh/id_rsa"
+else
+  echo -e "${GREEN}Using SSH key: ${SSH_KEY_PATH}${NC}"
+fi#!/bin/bash
 
 # Colors for better output
 GREEN='\033[0;32m'
@@ -196,7 +202,7 @@ all:
         metrics-frontend:
           ansible_host: "FRONTEND_IP_HERE"  # Will be populated by terraform output
           ansible_user: root
-          ansible_ssh_private_key_file: "~/.ssh/id_rsa"  # Update with your key path
+          ansible_ssh_private_key_file: "${SSH_KEY_PATH}"
     
     backend:
       children:
