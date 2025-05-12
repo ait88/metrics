@@ -1,65 +1,4 @@
-# Check if a new .gitignore file is needed
-if [ ! -f ".gitignore" ]; then
-  echo -e "\n${BLUE}Creating .gitignore file...${NC}"
-  cat > .gitignore << EOF
-# Terraform
-.terraform/
-.terraform.lock.hcl
-terraform.tfstate
-terraform.tfstate.backup
-terraform.tfvars
-*.tfplan
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
-
-# Ansible
-ansible/inventories/*/hosts.yml
-ansible/vars/secrets.yml
-*.retry
-
-# SSH Keys
-*.pem
-*.key
-id_rsa*
-*.ppk
-
-# Environment variables
-.env
-.env.*
-!.env.example
-
-# Docker
-docker-compose.override.yml
-
-# Certificates
-*.crt
-*.csr
-*.key
-*.p12
-*.pem
-
-# OS specific
-.DS_Store
-Thumbs.db
-
-# Editor specific
-.vscode/
-.idea/
-*.swp
-*~
-
-# Wireguard
-wg*.conf
-
-# Other sensitive data
-**/credentials.yml
-**/passwords.yml
-**/tokens.yml
-EOF
-  echo -e "${GREEN}.gitignore file created.${NC}"
-fi#!/bin/bash
+#!/bin/bash
 
 # Colors for better output
 GREEN='\033[0;32m'
@@ -339,6 +278,69 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
   fi
 else
   echo -e "${GREEN}All required dependencies are already installed.${NC}"
+fi
+
+# Check if a new .gitignore file is needed
+if [ ! -f ".gitignore" ]; then
+  echo -e "\n${BLUE}Creating .gitignore file...${NC}"
+  cat > .gitignore << EOF
+# Terraform
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate
+terraform.tfstate.backup
+terraform.tfvars
+*.tfplan
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ansible
+ansible/inventories/*/hosts.yml
+ansible/vars/secrets.yml
+*.retry
+
+# SSH Keys
+*.pem
+*.key
+id_rsa*
+*.ppk
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose.override.yml
+
+# Certificates
+*.crt
+*.csr
+*.key
+*.p12
+*.pem
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Editor specific
+.vscode/
+.idea/
+*.swp
+*~
+
+# Wireguard
+wg*.conf
+
+# Other sensitive data
+**/credentials.yml
+**/passwords.yml
+**/tokens.yml
+EOF
+  echo -e "${GREEN}.gitignore file created.${NC}"
 fi
 
 # Step 0: SSH Key Setup
