@@ -1,17 +1,4 @@
-# Check if SSH_KEY_PATH is set
-if [ -z "${SSH_KEY_PATH}" ]; then
-  echo -e "${YELLOW}SSH_KEY_PATH not set. Using default ~/.ssh/id_rsa${NC}"
-  SSH_KEY_PATH="$HOME/.ssh/id_rsa"
-else
-  echo -e "${GREEN}Using SSH key: ${SSH_KEY_PATH}${NC}"
-fi
-
-# Check if the SSH key exists
-if [ ! -f "${SSH_KEY_PATH}" ]; then
-  echo -e "${RED}SSH key not found at ${SSH_KEY_PATH}. Please check the path.${NC}"
-  echo -e "${YELLOW}You can create a key using: ssh-keygen -t rsa -b 4096 -f \"${SSH_KEY_PATH}\" -N \"\"${NC}"
-  exit 1
-fi#!/bin/bash
+#!/bin/bash
 
 # Colors for better output
 GREEN='\033[0;32m'
@@ -52,6 +39,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+
 echo -e "${BLUE}====================================${NC}"
 echo -e "${BLUE}Metrics Monitoring Infrastructure Deployment${NC}"
 echo -e "${BLUE}====================================${NC}"
@@ -60,6 +48,21 @@ echo -e "${BLUE}====================================${NC}"
 command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
+
+# Check if SSH_KEY_PATH is set
+if [ -z "${SSH_KEY_PATH}" ]; then
+  echo -e "${YELLOW}SSH_KEY_PATH not set. Using default ~/.ssh/id_rsa${NC}"
+  SSH_KEY_PATH="$HOME/.ssh/id_rsa"
+else
+  echo -e "${GREEN}Using SSH key: ${SSH_KEY_PATH}${NC}"
+fi
+
+# Check if the SSH key exists
+if [ ! -f "${SSH_KEY_PATH}" ]; then
+  echo -e "${RED}SSH key not found at ${SSH_KEY_PATH}. Please check the path.${NC}"
+  echo -e "${YELLOW}You can create a key using: ssh-keygen -t rsa -b 4096 -f \"${SSH_KEY_PATH}\" -N \"\"${NC}"
+  exit 1
+fi
 
 # Function to ask for confirmation
 confirm() {

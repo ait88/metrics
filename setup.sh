@@ -1,10 +1,4 @@
-# Check if SSH_KEY_PATH is set
-if [ -z "${SSH_KEY_PATH}" ]; then
-  echo -e "${YELLOW}SSH_KEY_PATH not set. Using default ~/.ssh/id_rsa${NC}"
-  SSH_KEY_PATH="$HOME/.ssh/id_rsa"
-else
-  echo -e "${GREEN}Using SSH key: ${SSH_KEY_PATH}${NC}"
-fi#!/bin/bash
+#!/bin/bash
 
 # Colors for better output
 GREEN='\033[0;32m'
@@ -18,6 +12,14 @@ echo -e "${BLUE}Metrics Monitoring Infrastructure Setup${NC}"
 echo -e "${BLUE}====================================${NC}"
 echo -e "${YELLOW}Note: This script is typically called by install.sh${NC}"
 echo -e "${YELLOW}but can be run separately if needed.${NC}"
+
+# Check if SSH_KEY_PATH is set
+if [ -z "${SSH_KEY_PATH}" ]; then
+  echo -e "${YELLOW}SSH_KEY_PATH not set. Using default ~/.ssh/id_rsa${NC}"
+  SSH_KEY_PATH="$HOME/.ssh/id_rsa"
+else
+  echo -e "${GREEN}Using SSH key: ${SSH_KEY_PATH}${NC}"
+fi#
 
 # Check prerequisites
 echo -e "\n${YELLOW}Checking prerequisites...${NC}"

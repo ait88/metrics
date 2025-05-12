@@ -1,11 +1,4 @@
-# Initialize Git repository if not already initialized
-if [ ! -d .git ]; then
-  echo -e "\n${YELLOW}Initializing Git repository...${NC}"
-  git init
-  echo -e "${GREEN}Git repository initialized.${NC}"
-else
-  echo -e "\n${YELLOW}Git repository already initialized${NC}"
-fi#!/bin/bash
+#!/bin/bash
 
 # Colors for better output
 GREEN='\033[0;32m'
@@ -22,6 +15,15 @@ echo -e "${BLUE}====================================${NC}"
 command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
+
+# Initialize Git repository if not already initialized
+if [ ! -d .git ]; then
+  echo -e "\n${YELLOW}Initializing Git repository...${NC}"
+  git init
+  echo -e "${GREEN}Git repository initialized.${NC}"
+else
+  echo -e "\n${YELLOW}Git repository already initialized${NC}"
+fi
 
 # Function to detect OS
 detect_os() {
