@@ -19,7 +19,7 @@ if [ -z "${SSH_KEY_PATH}" ]; then
   SSH_KEY_PATH="$HOME/.ssh/id_rsa"
 else
   echo -e "${GREEN}Using SSH key: ${SSH_KEY_PATH}${NC}"
-fi#
+fi 
 
 # Check prerequisites
 echo -e "\n${YELLOW}Checking prerequisites...${NC}"
