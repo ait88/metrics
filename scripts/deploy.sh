@@ -1,4 +1,17 @@
-#!/bin/bash
+# Check if SSH_KEY_PATH is set
+if [ -z "${SSH_KEY_PATH}" ]; then
+  echo -e "${YELLOW}SSH_KEY_PATH not set. Using default ~/.ssh/id_rsa${NC}"
+  SSH_KEY_PATH="$HOME/.ssh/id_rsa"
+else
+  echo -e "${GREEN}Using SSH key: ${SSH_KEY_PATH}${NC}"
+fi
+
+# Check if the SSH key exists
+if [ ! -f "${SSH_KEY_PATH}" ]; then
+  echo -e "${RED}SSH key not found at ${SSH_KEY_PATH}. Please check the path.${NC}"
+  echo -e "${YELLOW}You can create a key using: ssh-keygen -t rsa -b 4096 -f \"${SSH_KEY_PATH}\" -N \"\"${NC}"
+  exit 1
+fi#!/bin/bash
 
 # Colors for better output
 GREEN='\033[0;32m'
@@ -206,7 +219,7 @@ all:
         metrics-frontend:
           ansible_host: "${FRONTEND_IP}"
           ansible_user: root
-          ansible_ssh_private_key_file: "~/.ssh/id_rsa"  # Update with your key path
+          ansible_ssh_private_key_file: "${SSH_KEY_PATH}"
     
     backend:
       children:
@@ -359,7 +372,7 @@ if [ -f "ansible/playbooks/frontend-setup.yml" ]; then
   SSH_TIMEOUT=15 # Increased from 10 to 15
   
   for i in $(seq 1 $SSH_RETRIES); do
-    if ssh -o ConnectTimeout=$SSH_TIMEOUT -o BatchMode=yes -o StrictHostKeyChecking=no root@$FRONTEND_IP "echo SSH connection successful" &>/dev/null; then
+    if ssh -o ConnectTimeout=$SSH_TIMEOUT -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "echo SSH connection successful" &>/dev/null; then
       SSH_CONNECTED=true
       break
     else
@@ -369,7 +382,7 @@ if [ -f "ansible/playbooks/frontend-setup.yml" ]; then
   done
   
   if [ "$SSH_CONNECTED" = true ]; then
-    ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml || {
+    ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml --private-key="${SSH_KEY_PATH}" || {
       echo -e "${RED}Ansible deployment failed.${NC}";
       echo -e "${YELLOW}You may need to wait a bit longer for the server to be ready.${NC}";
       echo -e "${YELLOW}You can try running the playbook manually:${NC}";
