@@ -1,4 +1,11 @@
-#!/bin/bash
+# Initialize Git repository if not already initialized
+if [ ! -d .git ]; then
+  echo -e "\n${YELLOW}Initializing Git repository...${NC}"
+  git init
+  echo -e "${GREEN}Git repository initialized.${NC}"
+else
+  echo -e "\n${YELLOW}Git repository already initialized${NC}"
+fi#!/bin/bash
 
 # Colors for better output
 GREEN='\033[0;32m'

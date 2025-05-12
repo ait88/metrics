@@ -16,6 +16,8 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}====================================${NC}"
 echo -e "${BLUE}Metrics Monitoring Infrastructure Setup${NC}"
 echo -e "${BLUE}====================================${NC}"
+echo -e "${YELLOW}Note: This script is typically called by install.sh${NC}"
+echo -e "${YELLOW}but can be run separately if needed.${NC}"
 
 # Check prerequisites
 echo -e "\n${YELLOW}Checking prerequisites...${NC}"
@@ -249,80 +251,11 @@ EOF
   fi
 fi
 
-# Create or check .gitignore
-GITIGNORE_FILE=".gitignore"
-if [ ! -f "$GITIGNORE_FILE" ]; then
-  echo -e "\n${YELLOW}Creating .gitignore file...${NC}"
-  cat > "$GITIGNORE_FILE" << EOF
-# Terraform
-.terraform/
-.terraform.lock.hcl
-terraform.tfstate
-terraform.tfstate.backup
-terraform.tfvars
-*.tfplan
-override.tf
-override.tf.json
-*_override.tf
-*_override.tf.json
+# Remove .gitignore creation (moved to install.sh)
 
-# Ansible
-ansible/inventories/*/hosts.yml
-ansible/vars/secrets.yml
-*.retry
 
-# SSH Keys
-*.pem
-*.key
-id_rsa*
-*.ppk
+# Initialize Git repository if not already initialized (already included in install.sh, so remove from here)
 
-# Environment variables
-.env
-.env.*
-!.env.example
-
-# Docker
-docker-compose.override.yml
-
-# Certificates
-*.crt
-*.csr
-*.key
-*.p12
-*.pem
-
-# OS specific
-.DS_Store
-Thumbs.db
-
-# Editor specific
-.vscode/
-.idea/
-*.swp
-*~
-
-# Wireguard
-wg*.conf
-
-# Other sensitive data
-**/credentials.yml
-**/passwords.yml
-**/tokens.yml
-EOF
-  echo -e "${GREEN}Created .gitignore file${NC}"
-else
-  echo -e "${YELLOW}.gitignore file already exists${NC}"
-fi
-
-# Initialize Git repository if not already initialized
-if [ ! -d .git ]; then
-  echo -e "\n${YELLOW}Initializing Git repository...${NC}"
-  git init
-  echo -e "${GREEN}Git repository initialized.${NC}"
-else
-  echo -e "\n${YELLOW}Git repository already initialized${NC}"
-fi
 
 # Make scripts executable if they exist
 mkdir -p scripts
