@@ -1,55 +1,102 @@
-## CloudFlare Integration
+# Metrics - Monitoring Infrastructure
 
-This project includes automated CloudFlare DNS management:
+A comprehensive monitoring infrastructure using Prometheus, Grafana, and other open-source tools to monitor various systems across multiple environments.
 
-- **DNS Automation**: Automatically create and update DNS records
-- **Security Layer**: Use CloudFlare proxy for protection against DDoS and common attacks
-- **Performance**: Configure caching for static assets
-- **Easy Setup**: Integrated with the main deployment workflow
-
-### Setting Up CloudFlare Integration
-
-1. During setup, answer 'y' when asked about CloudFlare configuration
-2. Provide your CloudFlare API token (with Zone:DNS permissions)
-3. Enter your CloudFlare Zone ID
-4. After deploying the frontend, run the CloudFlare update script:
-   ```bash
-   ./scripts/update_cloudflare.sh
-   ```
-
-This will create DNS records for all monitoring services and configure the CloudFlare proxy settings.
-
-### CloudFlare Resources Created
-
-- A record for base monitoring URL: `metrics.yourdomain.com`
-- Service-specific records:
-  - `prometheus.metrics.yourdomain.com`
-  - `grafana.metrics.yourdomain.com`
-  - `push.metrics.yourdomain.com`
-  - `alertmanager.metrics.yourdomain.com`
-- Non-proxied record for WireGuard: `wg.metrics.yourdomain.com`
-- Page rules for caching static content
-- Optional firewall rule to block common malicious bots## Features
+## Features
 
 - **Hierarchical Monitoring**: DNS → Cloud → Edge → Internal components
 - **Security-Focused**: Encrypted communications, authentication, and firewall rules
 - **Distributed Architecture**: Frontend and backend components for secure collection
 - **CloudFlare Integration**: Automated DNS management and added security layer
+- **Automated SSH Setup**: Dedicated SSH key generation for secure, simplified access
 - **Configuration as Code**: Complete infrastructure defined in Terraform and Ansible
 - **Containerized Stack**: Easy deployment and updates with Docker
-- **Comprehensive Monitoring**: Various exporters for different system types# Metrics - Monitoring Infrastructure
+- **Comprehensive Monitoring**: Various exporters for different system types
 
-A comprehensive monitoring infrastructure using Prometheus, Grafana, and other open-source tools to monitor various systems across multiple environments.
+## Architecture Overview
 
-## Project Overview
+The monitoring infrastructure follows a distributed architecture:
 
-This project implements a scalable, hierarchical monitoring solution with the following features:
+- **Frontend Component**: Public-facing proxy that receives metrics from remote nodes
+- **Backend Components**: Core monitoring stack (Prometheus, Grafana, Alertmanager, Loki)
+- **Secure Communication**: WireGuard VPN for secure data transmission between frontend and backend
 
-- Relationship/dependency mapping
-- Hierarchical visibility (DNS → Cloud → Edge → Internal)
-- Pure open-source solution
-- Exportable metrics for custom dashboards/portals
-- Configuration as code (Git-based)
+```
+┌─────────────────┐            ┌─────────────────────────────────────────┐
+│                 │            │                                         │
+│  Remote Systems ├────────────►  Frontend Component (Public IP)         │
+│                 │            │                                         │
+└─────────────────┘            └───────────────┬─────────────────────────┘
+                                               │
+                                               │ WireGuard VPN
+                                               │
+                                               ▼
+                               ┌─────────────────────────────────────────┐
+                               │                                         │
+                               │  Backend Components (Private Network)   │
+                               │                                         │
+                               └─────────────────────────────────────────┘
+```
+
+Systems monitored:
+- Linux VMs and servers
+- Hypervisors (Proxmox and XCP-ng)
+- Docker containers/swarms
+- Ubuntu-based kiosks
+- Windows servers and workstations (stretch goal)
+
+## Getting Started
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Terraform
+- Ansible
+- Git
+- Vultr account with API key
+- CloudFlare account (optional, for DNS management)
+
+### Installation
+
+The project includes a comprehensive installation script that handles the entire process:
+
+```bash
+# Make the installation script executable
+chmod +x install.sh
+
+# Run the installation
+./install.sh
+```
+
+The installation process will:
+1. Generate a dedicated SSH key for the project
+2. Guide you through adding the key to Vultr
+3. Set up the necessary configuration files
+4. Deploy the frontend infrastructure
+5. Configure CloudFlare DNS (if enabled)
+6. Deploy the monitoring services
+
+### Manual Installation
+
+If you prefer a step-by-step approach:
+
+1. Generate an SSH key:
+   ```bash
+   mkdir -p ~/.ssh/metrics
+   ssh-keygen -t rsa -b 4096 -f ~/.ssh/metrics/id_rsa -N "" -C "metrics_deployment"
+   ```
+
+2. Run the setup script:
+   ```bash
+   chmod +x setup.sh
+   SSH_KEY_PATH=~/.ssh/metrics/id_rsa ./setup.sh
+   ```
+
+3. Deploy the infrastructure:
+   ```bash
+   chmod +x scripts/deploy.sh
+   SSH_KEY_PATH=~/.ssh/metrics/id_rsa ./scripts/deploy.sh
+   ```
 
 ## Infrastructure Details
 
@@ -65,6 +112,7 @@ Key components of the frontend infrastructure:
 ### Security
 
 The monitoring infrastructure implements several security measures:
+- Dedicated SSH keys for secure, automated access
 - WireGuard VPN for secure communication between frontend and backend
 - Firewall rules to restrict access to necessary ports
 - HTTPS with Let's Encrypt certificates for all web services
@@ -79,6 +127,24 @@ The monitoring infrastructure implements several security measures:
 3. Backend components process, store, and visualize the data
 4. Alerts are generated and sent to notification channels as needed
 
+## CloudFlare Integration
+
+This project includes automated CloudFlare DNS management:
+
+- **DNS Automation**: Automatically create and update DNS records
+- **Security Layer**: Use CloudFlare proxy for protection against DDoS and common attacks
+- **Performance**: Configure caching for static assets
+- **Easy Setup**: Integrated with the main deployment workflow
+
+CloudFlare DNS records created:
+- Base monitoring URL: `metrics.yourdomain.com`
+- Service-specific records:
+  - `prometheus.metrics.yourdomain.com`
+  - `grafana.metrics.yourdomain.com`
+  - `push.metrics.yourdomain.com`
+  - `alertmanager.metrics.yourdomain.com`
+- Non-proxied record for WireGuard: `wg.metrics.yourdomain.com`
+
 ## CI/CD Workflow
 
 This project includes a GitHub Actions workflow for automated deployment:
@@ -88,6 +154,39 @@ This project includes a GitHub Actions workflow for automated deployment:
 - **Backend Deployment**: Sets up the backend components
 
 The workflow can be triggered manually through the GitHub Actions interface.
+
+## Implementation Phases
+
+### Phase 1: Core Infrastructure
+- [x] Initialize repository structure
+- [x] Create Terraform configuration for frontend
+- [x] Set up automated deployment workflow
+- [x] Implement frontend provisioning
+- [x] Add CloudFlare integration for DNS management
+- [x] Implement automated SSH key generation
+- [ ] Configure WireGuard VPN
+- [ ] Set up Docker services on frontend
+
+### Phase 2: Backend Setup
+- [ ] Create backend infrastructure
+- [ ] Deploy Prometheus, Grafana, Alertmanager, and Loki
+- [ ] Configure persistent storage
+- [ ] Set up authentication and security
+- [ ] Create initial dashboards
+
+### Phase 3: Monitoring Agents
+- [ ] Deploy node_exporter to Linux systems
+- [ ] Set up Docker monitoring with cAdvisor
+- [ ] Configure hypervisor monitoring
+- [ ] Set up kiosk monitoring
+- [ ] Implement Windows monitoring (stretch goal)
+
+### Phase 4: Advanced Features
+- [ ] Deploy NetBox for infrastructure modeling
+- [ ] Create service dependency configurations
+- [ ] Build relationship visualization dashboards
+- [ ] Implement topology views
+- [ ] Set up advanced alerting rules
 
 ## Project Organization
 
@@ -112,117 +211,13 @@ metrics/
 ├── exporters/                  # Exporter configurations
 ├── dashboards/                 # Grafana dashboard JSON files
 ├── scripts/                    # Utility scripts
-│   └── update_cloudflare.sh    # Script to update CloudFlare DNS
+│   ├── deploy.sh               # Infrastructure deployment script
+│   └── update_cloudflare.sh    # CloudFlare DNS update script
 ├── .github/workflows/          # CI/CD workflows
 ├── .gitignore                  # Git ignore patterns
-└── setup.sh                    # Automated setup script
+├── setup.sh                    # Configuration setup script
+└── install.sh                  # Main installation script
 ```
-
-## Monitoring Architecture
-
-The monitoring infrastructure follows a distributed architecture:
-
-- **Frontend Component**: Public-facing proxy that receives metrics from remote nodes
-- **Backend Components**: Core monitoring stack (Prometheus, Grafana, Alertmanager, Loki)
-- **Secure Communication**: Wireguard VPN for secure data transmission
-
-Systems monitored:
-- Linux VMs and servers
-- Hypervisors (Proxmox and XCP-ng)
-- Docker containers/swarms
-- Ubuntu-based kiosks
-- Windows servers and workstations (stretch goal)
-
-## Getting Started
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Terraform
-- Ansible
-- Git
-- Vultr account with API key
-- CloudFlare account (optional, for DNS management)
-
-### Automated Setup
-
-We provide a setup script that helps you configure the necessary files and directories:
-
-```bash
-# Make the setup script executable
-chmod +x setup.sh
-
-# Run the setup script
-./setup.sh
-```
-
-The setup script will:
-1. Create the necessary directory structure
-2. Prompt for configuration values (Vultr API key, SSH key name, domain, etc.)
-3. Generate configuration files from these inputs
-4. Set up terraform.tfvars and other required files
-
-### Manual Setup
-
-If you prefer to set up the project manually:
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/ait88/metrics.git
-   cd metrics
-   ```
-
-2. Create terraform.tfvars from the example:
-   ```bash
-   cp terraform/frontend/terraform.tfvars.example terraform/frontend/terraform.tfvars
-   # Edit the terraform.tfvars file with your Vultr credentials
-   ```
-
-3. Deploy the frontend infrastructure:
-   ```bash
-   cd terraform/frontend
-   terraform init
-   terraform plan -out=tfplan
-   terraform apply tfplan
-   ```
-
-Detailed setup instructions can be found in [docs/setup.md](docs/setup.md).
-
-### Git Workflow
-
-For guidelines on working with this Git repository, including best practices and handling sensitive data, see [docs/git_workflow.md](docs/git_workflow.md).
-
-## Implementation Phases
-
-### Phase 1: Core Infrastructure
-- [x] Initialize repository structure
-- [x] Create Terraform configuration for frontend
-- [x] Set up automated deployment workflow
-- [x] Implement frontend provisioning
-- [x] Add CloudFlare integration for DNS management
-- [ ] Configure WireGuard VPN
-- [ ] Set up Docker services on frontend
-
-### Phase 2: Backend Setup
-- [ ] Create backend infrastructure
-- [ ] Deploy Prometheus, Grafana, Alertmanager, and Loki
-- [ ] Configure persistent storage
-- [ ] Set up authentication and security
-- [ ] Create initial dashboards
-
-### Phase 3: Monitoring Agents
-- [ ] Deploy node_exporter to Linux systems
-- [ ] Set up Docker monitoring with cAdvisor
-- [ ] Configure hypervisor monitoring
-- [ ] Set up kiosk monitoring
-- [ ] Implement Windows monitoring (stretch goal)
-
-### Phase 4: Advanced Features
-- [ ] Deploy NetBox for infrastructure modeling
-- [ ] Create service dependency configurations
-- [ ] Build relationship visualization dashboards
-- [ ] Implement topology views
-- [ ] Set up advanced alerting rules
 
 ## License
 
