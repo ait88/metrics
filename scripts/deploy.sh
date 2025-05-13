@@ -422,7 +422,7 @@ if [ -f "ansible/playbooks/frontend-setup.yml" ]; then
     fi
   done
     if [ "$SSH_CONNECTED" = true ]; then
-    ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml --private-key="${SSH_KEY_PATH}" || {
+    timeout 600 ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml --private-key="${SSH_KEY_PATH}" || {
       echo -e "${RED}Ansible deployment failed.${NC}";
       echo -e "${YELLOW}You may need to wait a bit longer for the server to be ready.${NC}";
       echo -e "${YELLOW}You can try running the playbook manually:${NC}";
