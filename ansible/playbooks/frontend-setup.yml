@@ -6,6 +6,23 @@
     - ../vars/main.yml
     - ../vars/secrets.yml
 
+  pre_tasks:
+    - name: Wait for apt lock to be released
+      shell: while lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+      changed_when: False
+      retries: 10
+      delay: 30
+      register: apt_lock_wait
+      until: apt_lock_wait is not failed
+
+    - name: Wait for apt to finish any ongoing installations
+      shell: while pgrep -f apt > /dev/null; do sleep 5; done
+      changed_when: False
+      retries: 10
+      delay: 30
+      register: apt_process_wait
+      until: apt_process_wait is not failed
+
   tasks:
     - name: Update apt cache
       apt:
