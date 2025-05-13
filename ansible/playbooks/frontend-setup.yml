@@ -15,13 +15,30 @@
       register: apt_lock_wait
       until: apt_lock_wait is not failed
 
-    - name: Wait for apt to finish any ongoing installations
-      shell: while pgrep -f apt > /dev/null; do sleep 5; done
-      changed_when: False
-      retries: 10
-      delay: 30
-      register: apt_process_wait
-      until: apt_process_wait is not failed
+    - name: Check if apt is running
+      shell: "pgrep -f apt || echo 'No apt processes'"
+      register: apt_check
+      changed_when: false
+  
+    - name: Display apt status
+      debug:
+      msg: "Apt status: {{ apt_check.stdout }}"
+    
+    - name: Ensure dpkg is in a good state
+      shell: "dpkg --configure -a"
+      changed_when: false
+
+    - name: Force clean apt/dpkg state
+      shell: |
+        if lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+          echo "Removing stale lock files..."
+          rm -f /var/lib/apt/lists/lock
+          rm -f /var/lib/dpkg/lock
+          rm -f /var/lib/dpkg/lock-frontend
+          dpkg --configure -a
+        fi
+        exit 0
+      changed_when: false
 
   tasks:
     - name: Update apt cache

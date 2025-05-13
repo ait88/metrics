@@ -252,6 +252,42 @@ if [ "$USE_CLOUDFLARE" = true ]; then
     fi
   fi
   
+# After IP verification but before Ansible playbook
+echo -e "${YELLOW}Rebooting the VM to ensure clean state...${NC}"
+if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "reboot" &>/dev/null; then
+  echo -e "${GREEN}Reboot command sent. Waiting for VM to come back online...${NC}"
+  sleep 30  # Initial wait for VM to go down
+  
+  # Wait for VM to come back online
+  REBOOT_RETRIES=10
+  for i in $(seq 1 $REBOOT_RETRIES); do
+    if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "echo VM is back online" &>/dev/null; then
+      echo -e "${GREEN}VM is back online after reboot.${NC}"
+      sleep 10  # Give services a moment to fully start
+      break
+    else
+      echo -e "${YELLOW}Waiting for VM to come back online (attempt $i of $REBOOT_RETRIES)...${NC}"
+      sleep 15
+    fi
+    
+    if [ $i -eq $REBOOT_RETRIES ]; then
+      echo -e "${RED}VM did not come back online after reboot. Continuing anyway...${NC}"
+    fi
+  done
+else
+  echo -e "${RED}Failed to send reboot command to VM. Continuing anyway...${NC}"
+fi
+
+echo -e "${YELLOW}Verifying VM IP address...${NC}"
+if ! ping -c 1 -W 5 "$FRONTEND_IP" &>/dev/null; then
+  echo -e "${RED}Warning: Cannot ping $FRONTEND_IP. The VM may have a different IP.${NC}"
+  read -p "Please enter the correct VM IP address (or press Enter to continue with $FRONTEND_IP): " CORRECTED_IP
+  if [ -n "$CORRECTED_IP" ]; then
+    FRONTEND_IP="$CORRECTED_IP"
+    echo -e "${GREEN}Using corrected IP: $FRONTEND_IP${NC}"
+  fi
+fi
+
   # Check CF_NEEDS_UPDATE variable exists
   if [ -z ${CF_NEEDS_UPDATE+x} ]; then
     CF_NEEDS_UPDATE=true
