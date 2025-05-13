@@ -353,13 +353,13 @@ fi
 # Step 4: Wait for DNS propagation if using CloudFlare
 if [ "$USE_CLOUDFLARE" = true ] && [ "$CF_NEEDS_UPDATE" = true ]; then
   echo -e "\n${BLUE}Step 4: Waiting for DNS propagation...${NC}"
-  echo -e "${YELLOW}This may take a few minutes. Press Enter to continue, or wait 30 seconds.${NC}"
+  echo -e "${YELLOW}This may take a few minutes. Press Enter to continue, or wait 60 seconds.${NC}"
   
   if [ "$SKIP_CONFIRMATION" = true ]; then
-    echo -e "${YELLOW}Waiting 30 seconds for DNS propagation...${NC}"
-    sleep 30
+    echo -e "${YELLOW}Waiting 60 seconds for DNS propagation...${NC}"
+    sleep 60
   else
-    read -t 30 -p ""
+    read -t 60 -p ""
   fi
 fi
 
@@ -421,6 +421,22 @@ if [ -f "ansible/playbooks/frontend-setup.yml" ]; then
       sleep 15
     fi
   done
+    if [ "$SSH_CONNECTED" = true ]; then
+    ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml --private-key="${SSH_KEY_PATH}" || {
+      echo -e "${RED}Ansible deployment failed.${NC}";
+      echo -e "${YELLOW}You may need to wait a bit longer for the server to be ready.${NC}";
+      echo -e "${YELLOW}You can try running the playbook manually:${NC}";
+      echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml";
+    }
+  else
+    echo -e "${RED}SSH connection to frontend failed after $SSH_RETRIES attempts. Server may not be ready yet.${NC}"
+    echo -e "${YELLOW}Wait a few minutes and then run:${NC}"
+    echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml"
+  fi
+else
+  echo -e "${YELLOW}Ansible playbooks not found. Skipping Ansible deployment.${NC}"
+  echo -e "${YELLOW}You will need to set up the services manually or create Ansible playbooks.${NC}"
+fi
 
 # Final status
 echo -e "\n${GREEN}Deployment process completed!${NC}"

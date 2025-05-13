@@ -152,7 +152,7 @@ resource "vultr_reserved_ip" "frontend" {
 
 # Output the IP address
 output "frontend_ip" {
-  value = var.use_reserved_ip ? vultr_reserved_ip.frontend[0].ip : vultr_instance.frontend.main_ip
+  value = var.use_reserved_ip ? vultr_reserved_ip.frontend[0].subnet : vultr_instance.frontend.main_ip
 }
 
 # Output the instance ID for API operations if needed
