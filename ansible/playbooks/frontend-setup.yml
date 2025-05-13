@@ -22,7 +22,7 @@
   
     - name: Display apt status
       debug:
-      msg: "Apt status: {{ apt_check.stdout }}"
+        msg: "Apt status: {{ apt_check.stdout }}"
     
     - name: Ensure dpkg is in a good state
       shell: "dpkg --configure -a"
@@ -58,6 +58,10 @@
           - wireguard
           - python3-pip
         state: present
+      register: package_install
+      retries: 3
+      delay: 30
+      until: package_install is success
 
     - name: Add Docker repository key
       apt_key:
@@ -76,6 +80,10 @@
           - docker-ce-cli
           - containerd.io
         state: present
+      register: docker_install
+      retries: 3
+      delay: 30
+      until: docker_install is success
 
     - name: Install Docker Compose
       pip:
