@@ -159,8 +159,3 @@ output "frontend_ip" {
 output "instance_id" {
   value = vultr_instance.frontend.id
 }
-
-# Output the IP address
-output "frontend_ip" {
-  value = vultr_instance.frontend.main_ip
-}
