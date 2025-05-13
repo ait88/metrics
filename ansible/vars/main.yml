@@ -7,7 +7,7 @@ acme_email: "metrics@alexandrinait.com.au"
 wireguard_address: "10.8.0.1/24"
 wireguard_port: 51820
 wireguard_peers:
-  - public_key: "TO_BE_GENERATED"
+  - public_key: "REPLACE_AFTER_DEPLOYMENT"  # Will be generated during setup
     allowed_ips: "10.8.0.2/32"
 
 # Docker configuration
