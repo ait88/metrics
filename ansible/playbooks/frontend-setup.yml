@@ -86,9 +86,18 @@
       until: docker_install is success
 
     - name: Install Docker Compose
-      pip:
-        name: docker-compose
-        state: present
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v2.24.6/docker-compose-linux-x86_64"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+      register: docker_compose_download
+
+    - name: Create docker-compose symlink
+      file:
+        src: /usr/local/bin/docker-compose
+        dest: /usr/bin/docker-compose
+        state: link
+      when: docker_compose_download.changed
 
     - name: Add user to docker group
       user:
