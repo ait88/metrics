@@ -1,0 +1,50 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+  external_labels:
+    monitor: 'frontend'
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - "rules/*.yml"
+
+scrape_configs:
+  # Self monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Push Gateway for remote metrics
+  - job_name: 'pushgateway'
+    static_configs:
+      - targets: ['pushgateway:9091']
+    honor_labels: true
+    
+  # Node Exporter for local server metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Blackbox Exporter for endpoint monitoring
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+        - https://prometheus.{{ domain_name }}
+        - https://push.{{ domain_name }}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+remote_write:
+  - url: "http://10.8.0.2:9090/api/v1/write"
+    basic_auth:
+      username: "{{ remote_write_username }}"
+      password: "{{ remote_write_password }}"

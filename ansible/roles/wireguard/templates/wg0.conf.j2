@@ -5,7 +5,7 @@ ListenPort = {{ wireguard_port }}
 
 {% for peer in wireguard_peers %}
 [Peer]
-PublicKey = {{ peer.public_key }}
+PublicKey = {{ wireguard_public_key.stdout }}
 AllowedIPs = {{ peer.allowed_ips }}
 {% if peer.endpoint is defined %}
 Endpoint = {{ peer.endpoint }}

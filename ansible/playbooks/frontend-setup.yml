@@ -135,11 +135,6 @@
       register: wireguard_public_key
       changed_when: false
 
-    - name: Ensure WireGuard module is loaded
-      shell: modprobe wireguard
-      changed_when: false
-      ignore_errors: true
-
     - name: Configure WireGuard
       template:
         src: ../roles/wireguard/templates/wg0.conf.j2
