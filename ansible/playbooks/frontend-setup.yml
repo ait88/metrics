@@ -1,3 +1,130 @@
+---
+- name: Set up Frontend Component
+  hosts: frontend
+  become: true
+  vars_files:
+    - ../vars/main.yml
+    - ../vars/secrets.yml
+
+  pre_tasks:
+    - name: Wait for apt lock to be released
+      shell: while lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+      changed_when: False
+      retries: 10
+      delay: 30
+      register: apt_lock_wait
+      until: apt_lock_wait is not failed
+
+    - name: Check if apt is running
+      shell: "pgrep -f apt || echo 'No apt processes'"
+      register: apt_check
+      changed_when: false
+  
+    - name: Display apt status
+      debug:
+        msg: "Apt status: {{ apt_check.stdout }}"
+    
+    - name: Ensure dpkg is in a good state
+      shell: "dpkg --configure -a"
+      changed_when: false
+
+    - name: Force clean apt/dpkg state
+      shell: |
+        if lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
+          echo "Removing stale lock files..."
+          rm -f /var/lib/apt/lists/lock
+          rm -f /var/lib/dpkg/lock
+          rm -f /var/lib/dpkg/lock-frontend
+          dpkg --configure -a
+        fi
+        exit 0
+      changed_when: false
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg-agent
+          - software-properties-common
+          - ufw
+          - wireguard
+          - python3-pip
+        state: present
+      register: package_install
+      retries: 3
+      delay: 30
+      until: package_install is success
+
+    - name: Add Docker repository key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+      register: docker_install
+      retries: 3
+      delay: 30
+      until: docker_install is success
+
+    - name: Install Docker Compose
+      pip:
+        name: docker-compose
+        state: present
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Configure firewall
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: "{{ 'udp' if item == '51820' else 'tcp' }}"
+      loop:
+        - "22"
+        - "80"
+        - "443"
+        - "51820"
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+        policy: deny
+
+    - name: Create directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: 0755
+      loop:
+        - "/opt/metrics/docker"
+        - "/opt/metrics/docker/prometheus"
+        - "/opt/metrics/docker/blackbox-exporter"
+        - "/opt/metrics/wireguard"
+
     - name: Generate WireGuard private key
       shell: wg genkey
       register: wireguard_private_key
@@ -69,3 +196,30 @@
       debug:
         msg: "WireGuard setup failed but continuing with deployment. You may need to set it up manually later."
       when: wireguard_service_result is failed
+
+    - name: Copy Docker Compose files
+      template:
+        src: "../roles/frontend/templates/{{ item.src }}"
+        dest: "/opt/metrics/docker/{{ item.dest }}"
+        owner: root
+        group: root
+        mode: 0644
+      loop:
+        - { src: "docker-compose.yml.j2", dest: "docker-compose.yml" }
+        - { src: "prometheus.yml.j2", dest: "prometheus/prometheus.yml" }
+        - { src: "blackbox.yml.j2", dest: "blackbox-exporter/blackbox.yml" }
+        - { src: ".env.j2", dest: ".env" }
+
+    - name: Start Docker Compose services
+      shell: cd /opt/metrics/docker && docker-compose up -d
+      args:
+        executable: /bin/bash
+      register: docker_compose_result
+      changed_when: "'Creating' in docker_compose_result.stdout or 'Starting' in docker_compose_result.stdout"
+
+    - name: Output connection information
+      debug:
+        msg:
+          - "Frontend setup completed successfully."
+          - "WireGuard Public Key: {{ wireguard_public_key.stdout }}"
+          - "Frontend IP: {{ ansible_host }}"
