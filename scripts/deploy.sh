@@ -260,7 +260,7 @@ countdown_timer() {
     local BOTTOM_MESSAGE=${3:-"Complete!"}
 
     # Terminal control sequences
-    local CURSOR_UP="\033[10A"  # Move cursor up 10 lines (including blank lines and message)
+    local CURSOR_UP="\033[13A"  # Move cursor up 13 lines (including blank lines and message)
     local RESET="\033[0m"
     local RED="\033[31m"
     local GREEN="\033[32m"
@@ -407,16 +407,16 @@ EOF
 
     # Define colon separator 
     read -r -d '' COLON << 'EOF'
-----------
-----------
----__-----
---/--|----
---$$/-----
----__-----
---/--|----
---$$/-----
-----------
-----------
+------
+------
+--__--
+-/--|-
+-$$/--
+--__--
+-/--|-
+-$$/--
+------
+------
 EOF
 
     # Function to display a row of the time (HH:MM:SS)
