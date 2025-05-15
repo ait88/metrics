@@ -253,29 +253,189 @@ if [ "$USE_CLOUDFLARE" = true ]; then
   fi
   
 # Reboot VM
-echo -e "${YELLOW}Please wait while VM boots for the first time...${NC}"
-# Check if an argument (seconds) is provided
-if [ -z "$1" ]; then
-  echo "Usage: $0 <seconds>"
-  exit 1
-fi
+# Set default values
+DURATION=${1:-180}
+TOP_MESSAGE=${2:-"${YELLOW}Please wait while VM boots for the first time...${NC}"}
 
-seconds=$1
+# Terminal control sequences
+CURSOR_UP="\033[10A"  # Move cursor up 10 lines (1 blank + 1 message + 7 digit rows)
+RESET="\033[0m"
+RED="\033[31m"
+GREEN="\033[32m"
+YELLOW="\033[33m"
+BLUE="\033[34m"
 
-# Loop until seconds reach 0
-while [ $seconds -gt 0 ]; do
-  # Display remaining time
-  echo "Time remaining: $seconds seconds"
-  
-  # Wait for 1 second
-  sleep 1
-  
-  # Decrement seconds
-  seconds=$((seconds - 1))
+# Trap to ensure clean exit with Ctrl+C
+trap 'echo -e "\n\n${RED}Timer interrupted!${RESET}\n"; exit 130' SIGINT SIGTERM
+
+
+# Define ASCII art for digits (each 7 lines tall)
+declare -a DIGITS
+DIGITS[0]=" _______
+|  _    |
+| | |   |
+| | |   |
+| |_|   |
+|       |
+|_______|"
+
+DIGITS[1]=" ____
+|    |
+ |   |
+ |   |
+ |   |
+ |   |
+ |___|   "
+
+DIGITS[2]=" _______
+|       |
+|____   |
+ ____|  |
+| ______|
+| |_____
+|_______|"
+
+DIGITS[3]=" _______
+|       |
+|___    |
+ ___|   |
+|___    |
+ ___|   |
+|_______|"
+
+DIGITS[4]=" _   ___
+| | |   |
+| |_|   |
+|       |
+|___    |
+    |   |
+    |___|"
+
+DIGITS[5]=" _______
+|       |
+|   ____|
+|  |____
+|_____  |
+ _____| |
+|_______|"
+
+DIGITS[6]=" ___
+|   |
+|   |___
+|    _  |
+|   | | |
+|   |_| |
+|_______|"
+
+DIGITS[7]=" _______
+|       |
+|___    |
+    |   |
+    |   |
+    |   |
+    |___|"
+
+DIGITS[8]="  _____
+ |  _  |
+ | |_| |
+|   _   |
+|  | |  |
+|  |_|  |
+|_______|"
+
+DIGITS[9]=" _______
+|  _    |
+| | |   |
+| |_|   |
+|___    |
+    |   |
+    |___|"
+
+# Define colon separator
+COLON=" ___
+|   |
+|___|
+ ___
+|   |
+|___|
+         "
+
+# Function to display a row of the time (HH:MM:SS)
+display_time_row() {
+    local hours=$1
+    local minutes=$2
+    local seconds=$3
+    local row=$4
+    local color=$5
+
+    # Extract digits
+    local h1=$((hours / 10))
+    local h2=$((hours % 10))
+    local m1=$((minutes / 10))
+    local m2=$((minutes % 10))
+    local s1=$((seconds / 10))
+    local s2=$((seconds % 10))
+
+    # Get the specific row for each digit
+    local h1_row=$(echo "${DIGITS[$h1]}" | sed -n "${row}p")
+    local h2_row=$(echo "${DIGITS[$h2]}" | sed -n "${row}p")
+    local m1_row=$(echo "${DIGITS[$m1]}" | sed -n "${row}p")
+    local m2_row=$(echo "${DIGITS[$m2]}" | sed -n "${row}p")
+    local s1_row=$(echo "${DIGITS[$s1]}" | sed -n "${row}p")
+    local s2_row=$(echo "${DIGITS[$s2]}" | sed -n "${row}p")
+    local colon_row=$(echo "$COLON" | sed -n "${row}p")
+
+    # Output the row with all digits side by side
+    echo -e "$color$h1_row$h2_row$colon_row$m1_row$m2_row$colon_row$s1_row$s2_row$RESET"
+}
+
+# Function to display the full time
+display_time() {
+    local remaining=$1
+
+    # Calculate hours, minutes, seconds
+    local hours=$((remaining / 3600))
+    local minutes=$(((remaining % 3600) / 60))
+    local seconds=$((remaining % 60))
+
+    # Choose color based on remaining time
+    local color
+    if [ $remaining -gt 60 ]; then
+        color=$GREEN
+    elif [ $remaining -gt 30 ]; then
+        color=$BLUE
+    elif [ $remaining -gt 10 ]; then
+        color=$YELLOW
+    else
+        color=$RED
+    fi
+
+    # Display top message
+    echo -e "\n$color$TOP_MESSAGE$RESET"
+
+    # Display each row of the time
+    for row in {1..7}; do
+        display_time_row $hours $minutes $seconds $row "$color"
+    done
+}
+
+
+# Main countdown loop
+remaining=$DURATION
+display_time $remaining
+
+while [ $remaining -gt 0 ]; do
+    sleep 1
+    remaining=$((remaining - 1))
+
+    # Move cursor up to redraw the time display (exactly the number of lines we output)
+    echo -e "$CURSOR_UP"
+    display_time $remaining
 done
-# Countdown finished
 
-echo -e "${YELLOW}Rebooting the VM to ensure clean state...${NC}"
+# Display completion message
+echo -e "{YELLOW}Rebooting the VM to ensure clean state...${NC}"
+
 if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "reboot" &>/dev/null; then
   echo -e "${GREEN}Reboot command sent. Waiting for VM to come back online...${NC}"
   sleep 30  # Initial wait for VM to go down
