@@ -393,25 +393,22 @@ EOF
         local seconds=$3
         local row=$4
         local color=$5
-        
-        # Extract digits
+
         local h1=$((hours / 10))
         local h2=$((hours % 10))
         local m1=$((minutes / 10))
         local m2=$((minutes % 10))
         local s1=$((seconds / 10))
         local s2=$((seconds % 10))
-        
-        # Use 'sed' with a proper line terminator that won't cause issues
-        local h1_row=$(echo -e "${DIGITS[$h1]}" | sed -n "${row}p")
-        local h2_row=$(echo -e "${DIGITS[$h2]}" | sed -n "${row}p")
-        local m1_row=$(echo -e "${DIGITS[$m1]}" | sed -n "${row}p")
-        local m2_row=$(echo -e "${DIGITS[$m2]}" | sed -n "${row}p")
-        local s1_row=$(echo -e "${DIGITS[$s1]}" | sed -n "${row}p")
-        local s2_row=$(echo -e "${DIGITS[$s2]}" | sed -n "${row}p")
-        local colon_row=$(echo -e "$COLON" | sed -n "${row}p")
-        
-        # Output the row with all digits side by side
+
+        local h1_row=$(cat <<< "${DIGITS[$h1]}" | sed -n "${row}p")
+        local h2_row=$(cat <<< "${DIGITS[$h2]}" | sed -n "${row}p")
+        local m1_row=$(cat <<< "${DIGITS[$m1]}" | sed -n "${row}p")
+        local m2_row=$(cat <<< "${DIGITS[$m2]}" | sed -n "${row}p")
+        local s1_row=$(cat <<< "${DIGITS[$s1]}" | sed -n "${row}p")
+        local s2_row=$(cat <<< "${DIGITS[$s2]}" | sed -n "${row}p")
+        local colon_row=$(cat <<< "$COLON" | sed -n "${row}p")
+
         echo -e "$color$h1_row$h2_row$colon_row$m1_row$m2_row$colon_row$s1_row$s2_row$RESET"
     }
 
