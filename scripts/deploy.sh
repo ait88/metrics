@@ -252,7 +252,29 @@ if [ "$USE_CLOUDFLARE" = true ]; then
     fi
   fi
   
-# After IP verification but before Ansible playbook
+# Reboot VM
+echo -e "${YELLOW}Please wait while VM boots for the first time...${NC}"
+# Check if an argument (seconds) is provided
+if [ -z "$1" ]; then
+  echo "Usage: $0 <seconds>"
+  exit 1
+fi
+
+seconds=$1
+
+# Loop until seconds reach 0
+while [ $seconds -gt 0 ]; do
+  # Display remaining time
+  echo "Time remaining: $seconds seconds"
+  
+  # Wait for 1 second
+  sleep 1
+  
+  # Decrement seconds
+  seconds=$((seconds - 1))
+done
+# Countdown finished
+
 echo -e "${YELLOW}Rebooting the VM to ensure clean state...${NC}"
 if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "reboot" &>/dev/null; then
   echo -e "${GREEN}Reboot command sent. Waiting for VM to come back online...${NC}"
