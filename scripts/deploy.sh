@@ -477,7 +477,7 @@ EOF
 countdown_timer 180 "${YELLOW}Please wait while VM boots for the first time...${NC}" "${YELLOW}VM boot process complete.${NC}"
 
 # Display completion message
-echo -e "{YELLOW}Rebooting the VM to ensure clean state...${NC}"
+echo -e "${YELLOW}Rebooting the VM to ensure clean state...${NC}"
 
 if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "reboot" &>/dev/null; then
   echo -e "${GREEN}Reboot command sent. Waiting for VM to come back online...${NC}"
