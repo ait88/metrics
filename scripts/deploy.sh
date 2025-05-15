@@ -401,13 +401,13 @@ EOF
         local s1=$((seconds / 10))
         local s2=$((seconds % 10))
 
-        local h1_row=$(cat <<< "${DIGITS[$h1]}" | sed -n "${row}p")
-        local h2_row=$(cat <<< "${DIGITS[$h2]}" | sed -n "${row}p")
-        local m1_row=$(cat <<< "${DIGITS[$m1]}" | sed -n "${row}p")
-        local m2_row=$(cat <<< "${DIGITS[$m2]}" | sed -n "${row}p")
-        local s1_row=$(cat <<< "${DIGITS[$s1]}" | sed -n "${row}p")
-        local s2_row=$(cat <<< "${DIGITS[$s2]}" | sed -n "${row}p")
-        local colon_row=$(cat <<< "$COLON" | sed -n "${row}p")
+        local h1_row=$(printf "%s\n" "${DIGITS[$h1]}" | sed -n "${row}p")
+        local h2_row=$(printf "%s\n" "${DIGITS[$h2]}" | sed -n "${row}p")
+        local m1_row=$(printf "%s\n" "${DIGITS[$m1]}" | sed -n "${row}p")
+        local m2_row=$(printf "%s\n" "${DIGITS[$m2]}" | sed -n "${row}p")
+        local s1_row=$(printf "%s\n" "${DIGITS[$s1]}" | sed -n "${row}p")
+        local s2_row=$(printf "%s\n" "${DIGITS[$s2]}" | sed -n "${row}p")
+        local colon_row=$(printf "%s\n" "$COLON" | sed -n "${row}p")
 
         echo -e "$color$h1_row$h2_row$colon_row$m1_row$m2_row$colon_row$s1_row$s2_row$RESET"
     }
