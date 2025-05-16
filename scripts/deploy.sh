@@ -261,7 +261,7 @@ countdown_timer() {
 
     # Terminal control sequences
     local DIGIT_HEIGHT=10
-    local LINES_PER_FRAME=$((DIGIT_HEIGHT + 1))  # 1 for TOP_MESSAGE
+    local LINES_PER_FRAME=$((DIGIT_HEIGHT + 3))  # 3 for TOP_MESSAGE and spaceing.
     local CURSOR_UP="\033[${LINES_PER_FRAME}A"
     local RESET="\033[0m"
     local RED="\033[31m"
