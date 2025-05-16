@@ -164,8 +164,8 @@ The workflow can be triggered manually through the GitHub Actions interface.
 - [x] Implement frontend provisioning
 - [x] Add CloudFlare integration for DNS management
 - [x] Implement automated SSH key generation
-- [ ] Configure WireGuard VPN
-- [ ] Set up Docker services on frontend
+- [x] Configure WireGuard VPN
+- [x] Set up Docker services on frontend
 
 ### Phase 2: Backend Setup
 - [ ] Create backend infrastructure
