@@ -252,6 +252,116 @@ if [ "$USE_CLOUDFLARE" = true ]; then
     fi
   fi
   
+# Check CF_NEEDS_UPDATE variable exists
+  if [ -z ${CF_NEEDS_UPDATE+x} ]; then
+    CF_NEEDS_UPDATE=true
+  fi
+  
+  if [ "$CF_NEEDS_UPDATE" = true ]; then
+    # Check if update_cloudflare.sh exists, create it if not
+    if [ ! -f "scripts/update_cloudflare.sh" ]; then
+      echo -e "${YELLOW}CloudFlare update script not found. Creating it...${NC}"
+      cat > "scripts/update_cloudflare.sh" << 'EOFSCRIPT'
+#!/bin/bash
+
+# Colors for better output
+GREEN='\033[0;32m'
+Cyan="\[\033[0;36m\]"
+YELLOW='\033[0;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+echo -e "${CYAN}====================================${NC}"
+echo -e "${CYAN}Update CloudFlare DNS Records${NC}"
+echo -e "${CYAN}====================================${NC}"
+
+# Check if frontend IP is provided
+if [ -z "$1" ]; then
+  # Try to get it from Terraform
+  FRONTEND_IP=$(cd terraform/frontend && terraform output -raw frontend_ip 2>/dev/null)
+  
+  if [ -z "$FRONTEND_IP" ]; then
+    echo -e "${RED}Error: Frontend IP not provided and could not be retrieved from Terraform.${NC}"
+    echo -e "${YELLOW}Usage: $0 <frontend_ip>${NC}"
+    exit 1
+  fi
+else
+  FRONTEND_IP="$1"
+fi
+
+echo -e "${YELLOW}Using Frontend IP: ${FRONTEND_IP}${NC}"
+
+# Check if CloudFlare configuration exists
+if [ ! -d "terraform/cloudflare" ] || [ ! -f "terraform/cloudflare/terraform.tfvars" ]; then
+  echo -e "${RED}Error: CloudFlare configuration not found.${NC}"
+  echo -e "${YELLOW}Make sure you've run setup.sh with CloudFlare configuration enabled.${NC}"
+  exit 1
+fi
+
+# Update the CloudFlare terraform.tfvars file with the frontend IP
+sed -i "s/FRONTEND_IP_PLACEHOLDER/${FRONTEND_IP}/" terraform/cloudflare/terraform.tfvars || {
+  echo -e "${RED}Error: Failed to update CloudFlare terraform.tfvars with frontend IP.${NC}"
+  exit 1
+}
+
+# Initialize and apply CloudFlare configuration
+cd terraform/cloudflare || {
+  echo -e "${RED}Error: CloudFlare Terraform directory not found.${NC}"
+  exit 1
+}
+
+echo -e "${YELLOW}Initializing Terraform...${NC}"
+terraform init || {
+  echo -e "${RED}Error: Failed to initialize Terraform.${NC}"
+  exit 1
+}
+
+echo -e "${YELLOW}Applying CloudFlare configuration...${NC}"
+terraform apply -auto-approve || {
+  echo -e "${RED}Error: Failed to apply CloudFlare configuration.${NC}"
+  exit 1
+}
+
+echo -e "${GREEN}CloudFlare DNS records updated successfully!${NC}"
+
+# Display the URLs
+echo -e "\n${YELLOW}Monitoring URLs:${NC}"
+terraform output | sed 's/^/  /'
+
+cd ../..
+
+echo -e "\n${YELLOW}Note: DNS propagation may take up to 5 minutes with CloudFlare.${NC}"
+echo -e "${YELLOW}You can verify the DNS records in the CloudFlare dashboard.${NC}"
+EOFSCRIPT
+      chmod +x scripts/update_cloudflare.sh
+      echo -e "${GREEN}CloudFlare update script created.${NC}"
+    fi
+
+    chmod +x scripts/update_cloudflare.sh
+    ./scripts/update_cloudflare.sh "$FRONTEND_IP" || { 
+      echo -e "${RED}CloudFlare DNS update failed.${NC}"; 
+      echo -e "${YELLOW}You can try running it manually:${NC}";
+      echo -e "   ./scripts/update_cloudflare.sh $FRONTEND_IP";
+      # Continue despite error
+    }
+  else
+    echo -e "${RED}CloudFlare update script not found.${NC}"
+    echo -e "${YELLOW}You can manually update the CloudFlare DNS records to point to: ${FRONTEND_IP}${NC}"
+  fi
+fi
+
+# Step 4: Wait for DNS propagation if using CloudFlare
+if [ "$USE_CLOUDFLARE" = true ] && [ "$CF_NEEDS_UPDATE" = true ]; then
+  echo -e "\n${CYAN}Step 4: Waiting for DNS propagation...${NC}"
+  echo -e "${YELLOW}This may take a few minutes...${NC}"
+    if [ "$SKIP_CONFIRMATION" = true ]; then
+    echo -e "${YELLOW}It's DNS it should be fine, what could go wrong?...${NC}"
+    sleep 10
+  else
+    read -t 10 -p ""
+  fi
+fi
+
 # Wait for VM first boot and updates.
 # Countdown Timer Function
 countdown_timer() {
@@ -584,117 +694,6 @@ done
 
 if [ "$VM_ONLINE" != "true" ]; then
   echo -e "${RED}VM did not come back online after reboot. Continuing anyway...${NC}"
-fi
-
-  # Check CF_NEEDS_UPDATE variable exists
-  if [ -z ${CF_NEEDS_UPDATE+x} ]; then
-    CF_NEEDS_UPDATE=true
-  fi
-  
-  if [ "$CF_NEEDS_UPDATE" = true ]; then
-    # Check if update_cloudflare.sh exists, create it if not
-    if [ ! -f "scripts/update_cloudflare.sh" ]; then
-      echo -e "${YELLOW}CloudFlare update script not found. Creating it...${NC}"
-      cat > "scripts/update_cloudflare.sh" << 'EOFSCRIPT'
-#!/bin/bash
-
-# Colors for better output
-GREEN='\033[0;32m'
-Cyan="\[\033[0;36m\]"
-YELLOW='\033[0;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-echo -e "${CYAN}====================================${NC}"
-echo -e "${CYAN}Update CloudFlare DNS Records${NC}"
-echo -e "${CYAN}====================================${NC}"
-
-# Check if frontend IP is provided
-if [ -z "$1" ]; then
-  # Try to get it from Terraform
-  FRONTEND_IP=$(cd terraform/frontend && terraform output -raw frontend_ip 2>/dev/null)
-  
-  if [ -z "$FRONTEND_IP" ]; then
-    echo -e "${RED}Error: Frontend IP not provided and could not be retrieved from Terraform.${NC}"
-    echo -e "${YELLOW}Usage: $0 <frontend_ip>${NC}"
-    exit 1
-  fi
-else
-  FRONTEND_IP="$1"
-fi
-
-echo -e "${YELLOW}Using Frontend IP: ${FRONTEND_IP}${NC}"
-
-# Check if CloudFlare configuration exists
-if [ ! -d "terraform/cloudflare" ] || [ ! -f "terraform/cloudflare/terraform.tfvars" ]; then
-  echo -e "${RED}Error: CloudFlare configuration not found.${NC}"
-  echo -e "${YELLOW}Make sure you've run setup.sh with CloudFlare configuration enabled.${NC}"
-  exit 1
-fi
-
-# Update the CloudFlare terraform.tfvars file with the frontend IP
-sed -i "s/FRONTEND_IP_PLACEHOLDER/${FRONTEND_IP}/" terraform/cloudflare/terraform.tfvars || {
-  echo -e "${RED}Error: Failed to update CloudFlare terraform.tfvars with frontend IP.${NC}"
-  exit 1
-}
-
-# Initialize and apply CloudFlare configuration
-cd terraform/cloudflare || {
-  echo -e "${RED}Error: CloudFlare Terraform directory not found.${NC}"
-  exit 1
-}
-
-echo -e "${YELLOW}Initializing Terraform...${NC}"
-terraform init || {
-  echo -e "${RED}Error: Failed to initialize Terraform.${NC}"
-  exit 1
-}
-
-echo -e "${YELLOW}Applying CloudFlare configuration...${NC}"
-terraform apply -auto-approve || {
-  echo -e "${RED}Error: Failed to apply CloudFlare configuration.${NC}"
-  exit 1
-}
-
-echo -e "${GREEN}CloudFlare DNS records updated successfully!${NC}"
-
-# Display the URLs
-echo -e "\n${YELLOW}Monitoring URLs:${NC}"
-terraform output | sed 's/^/  /'
-
-cd ../..
-
-echo -e "\n${YELLOW}Note: DNS propagation may take up to 5 minutes with CloudFlare.${NC}"
-echo -e "${YELLOW}You can verify the DNS records in the CloudFlare dashboard.${NC}"
-EOFSCRIPT
-      chmod +x scripts/update_cloudflare.sh
-      echo -e "${GREEN}CloudFlare update script created.${NC}"
-    fi
-
-    chmod +x scripts/update_cloudflare.sh
-    ./scripts/update_cloudflare.sh "$FRONTEND_IP" || { 
-      echo -e "${RED}CloudFlare DNS update failed.${NC}"; 
-      echo -e "${YELLOW}You can try running it manually:${NC}";
-      echo -e "   ./scripts/update_cloudflare.sh $FRONTEND_IP";
-      # Continue despite error
-    }
-  else
-    echo -e "${RED}CloudFlare update script not found.${NC}"
-    echo -e "${YELLOW}You can manually update the CloudFlare DNS records to point to: ${FRONTEND_IP}${NC}"
-  fi
-fi
-
-# Step 4: Wait for DNS propagation if using CloudFlare
-if [ "$USE_CLOUDFLARE" = true ] && [ "$CF_NEEDS_UPDATE" = true ]; then
-  echo -e "\n${CYAN}Step 4: Waiting for DNS propagation...${NC}"
-  echo -e "${YELLOW}This may take a few minutes. Press Enter to continue, or wait 60 seconds.${NC}"
-  
-  if [ "$SKIP_CONFIRMATION" = true ]; then
-    echo -e "${YELLOW}Waiting 60 seconds for DNS propagation...${NC}"
-    sleep 60
-  else
-    read -t 60 -p ""
-  fi
 fi
 
 # Step 5: Deploy with Ansible (if Ansible playbooks exist)
