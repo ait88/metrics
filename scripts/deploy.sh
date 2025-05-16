@@ -532,38 +532,58 @@ countdown_timer 180 "${YELLOW}Please wait while VM boots for the first time...${
 # Display completion message
 echo -e "${YELLOW}Rebooting the VM to ensure clean state...${NC}"
 
-if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "reboot" &>/dev/null; then
-  echo -e "${GREEN}Reboot command sent. Waiting for VM to come back online...${NC}"
-  sleep 30  # Initial wait for VM to go down
+# Try to reboot via Vultr API first
+VULTR_API_KEY=$(grep vultr_api_key terraform/frontend/terraform.tfvars | cut -d'"' -f2 2>/dev/null)
+INSTANCE_ID=$(cd terraform/frontend && terraform output -raw instance_id 2>/dev/null)
   
-  # Wait for VM to come back online
-  REBOOT_RETRIES=10
-  for i in $(seq 1 $REBOOT_RETRIES); do
-    if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "echo VM is back online" &>/dev/null; then
-      echo -e "${GREEN}VM is back online after reboot.${NC}"
-      sleep 10  # Give services a moment to fully start
-      break
-    else
-      echo -e "${YELLOW}Waiting for VM to come back online (attempt $i of $REBOOT_RETRIES)...${NC}"
-      sleep 15
-    fi
-    
-    if [ $i -eq $REBOOT_RETRIES ]; then
-      echo -e "${RED}VM did not come back online after reboot. Continuing anyway...${NC}"
-    fi
-  done
+if [ -n "$VULTR_API_KEY" ] && [ -n "$INSTANCE_ID" ]; then
+  echo -e "${YELLOW}Attempting to reboot VM via Vultr API...${NC}"
+  REBOOT_RESPONSE=$(curl -s -w "%{http_code}" -X POST "https://api.vultr.com/v2/instances/${INSTANCE_ID}/reboot" \
+    -H "Authorization: Bearer ${VULTR_API_KEY}" \
+    -H "Content-Type: application/json")
+  
+  HTTP_CODE=${REBOOT_RESPONSE: -3}
+  if [[ $HTTP_CODE == "204" ]]; then
+    echo -e "${GREEN}API reboot successfully initiated. Waiting 60 seconds for VM to reboot...${NC}"
+    sleep 60  # Wait for VM to reboot
+    API_REBOOT_SUCCESS=true
+  else
+    echo -e "${YELLOW}API reboot failed with code $HTTP_CODE. Falling back to SSH reboot...${NC}"
+    API_REBOOT_SUCCESS=false
+  fi
 else
-  echo -e "${RED}Failed to send reboot command to VM. Continuing anyway...${NC}"
+  echo -e "${YELLOW}Vultr API credentials not found. Falling back to SSH reboot...${NC}"
+  API_REBOOT_SUCCESS=false
 fi
 
-echo -e "${YELLOW}Verifying VM IP address...${NC}"
-if ! ping -c 1 -W 5 "$FRONTEND_IP" &>/dev/null; then
-  echo -e "${RED}Warning: Cannot ping $FRONTEND_IP. The VM may have a different IP.${NC}"
-  read -p "Please enter the correct VM IP address (or press Enter to continue with $FRONTEND_IP): " CORRECTED_IP
-  if [ -n "$CORRECTED_IP" ]; then
-    FRONTEND_IP="$CORRECTED_IP"
-    echo -e "${GREEN}Using corrected IP: $FRONTEND_IP${NC}"
+# Fall back to SSH reboot if API reboot failed
+if [ "$API_REBOOT_SUCCESS" != "true" ]; then
+  echo -e "${YELLOW}Attempting to reboot VM via SSH...${NC}"
+  if ssh -o ConnectTimeout=20 -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "reboot" &>/dev/null; then
+    echo -e "${GREEN}SSH reboot command sent. Waiting 60 seconds for VM to reboot...${NC}"
+    sleep 60  # Wait longer for VM to go down and come back up
+  else
+    echo -e "${RED}Failed to send reboot command via SSH. Continuing anyway...${NC}"
   fi
+fi
+
+# Wait for VM to come back online (regardless of reboot method)
+echo -e "${YELLOW}Checking if VM is back online...${NC}"
+REBOOT_RETRIES=15  # Increase number of retries
+for i in $(seq 1 $REBOOT_RETRIES); do
+  if ssh -o ConnectTimeout=10 -o BatchMode=yes -o StrictHostKeyChecking=no -i "${SSH_KEY_PATH}" root@$FRONTEND_IP "echo VM is back online" &>/dev/null; then
+    echo -e "${GREEN}VM is back online after reboot.${NC}"
+    sleep 10  # Give services a moment to fully start
+    VM_ONLINE=true
+    break
+  else
+    echo -e "${YELLOW}Waiting for VM to come back online (attempt $i of $REBOOT_RETRIES)...${NC}"
+    sleep 20  # Increase sleep time between attempts
+  fi
+done
+
+if [ "$VM_ONLINE" != "true" ]; then
+  echo -e "${RED}VM did not come back online after reboot. Continuing anyway...${NC}"
 fi
 
   # Check CF_NEEDS_UPDATE variable exists
