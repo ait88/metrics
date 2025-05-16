@@ -352,7 +352,7 @@ fi
 
 # Step 4: Wait for DNS propagation if using CloudFlare
 if [ "$USE_CLOUDFLARE" = true ] && [ "$CF_NEEDS_UPDATE" = true ]; then
-  echo -e "\n${CYAN}Step 4: Waiting for DNS propagation...${NC}"
+  echo -e "\n${CYAN}Step 4: Waiting for DNS propagation & VPS Initialisation...${NC}"
   echo -e "${YELLOW}This may take a few minutes...${NC}"
     if [ "$SKIP_CONFIRMATION" = true ]; then
     echo -e "${YELLOW}It's DNS it should be fine, what could go wrong?...${NC}"
