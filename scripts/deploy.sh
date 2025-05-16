@@ -498,13 +498,11 @@ EOF
     # Move cursor up to redraw the time display
     echo -e "$CURSOR_UP"
     display_time $remaining
-    done
-
+    
         # Move cursor up to redraw the time display
         echo -e "$CURSOR_UP"
         display_time $remaining
-    done
-
+    
     # Display completion message
     echo -e "\n$RED$BOTTOM_MESSAGE$RESET\n"
     
