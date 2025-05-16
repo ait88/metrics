@@ -477,39 +477,47 @@ EOF
         done
     }
 
-    # Main countdown loop
+        # Main countdown loop
     local remaining=$DURATION
     display_time $remaining
 
-    while [ $remaining -gt 0 ]; do
-        read -t 0.1 -n 1 key
-        if [[ "$key" == " " ]]; then
-            echo -e "\n${YELLOW}Timer skipped by user.${RESET}\n"
-            break
-        fi
+    stty -echo  # hide input (optional, but recommended)
+    local interrupted=0
 
-        sleep 1
-        remaining=$((remaining - 1))
-        
-        echo -e "$CURSOR_UP"
-        display_time $remaining
+    trap 'interrupted=1; echo -e "\n\n${RED}Timer interrupted!${RESET}\n"; stty echo; return 1' SIGINT
+
+    while [ $remaining -gt 0 ]; do
+        # Check for space bar or interruption in 100ms slices
+        for i in {1..10}; do
+            read -t 0.1 -n 1 key
+            if [[ "$key" == " " ]]; then
+                echo -e "\n${YELLOW}Timer skipped by user.${RESET}\n"
+                remaining=0
+                break
+            fi
+            if (( interrupted )); then
+                break
+            fi
+        done
+        (( interrupted )) && break
+
+        # Decrement if not interrupted/skipped
+        if [ $remaining -gt 0 ]; then
+            remaining=$((remaining - 1))
+            echo -e "$CURSOR_UP"
+            display_time $remaining
+        fi
     done
 
-    # Move cursor up to redraw the time display
-    echo -e "$CURSOR_UP"
-    display_time $remaining
-    
-        # Move cursor up to redraw the time display
-        echo -e "$CURSOR_UP"
-        display_time $remaining
-    
-    # Display completion message
-    echo -e "\n$RED$BOTTOM_MESSAGE$RESET\n"
-    
-    # Optional beep for time's up
-    echo -e "\a"
-    
-    # Restore the original trap
+    stty echo  # restore input
+
+    # Display completion message if not interrupted
+    if (( !interrupted )); then
+        echo -e "\n$RED$BOTTOM_MESSAGE$RESET\n"
+        echo -e "\a"
+    fi
+
+    # Restore the original trap (if needed)
     if [ -n "$old_trap" ]; then
         eval "$old_trap"
     else
