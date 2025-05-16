@@ -2,7 +2,7 @@
 
 # Colors for better output
 GREEN='\033[0;32m'
-BLUE='\033[0;34m'
+CYAN="\[\033[0;36m\]"
 YELLOW='\033[0;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
@@ -40,9 +40,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-echo -e "${BLUE}====================================${NC}"
-echo -e "${BLUE}Metrics Monitoring Infrastructure Deployment${NC}"
-echo -e "${BLUE}====================================${NC}"
+echo -e "${CYAN}====================================${NC}"
+echo -e "${CYAN}Metrics Monitoring Infrastructure Deployment${NC}"
+echo -e "${CYAN}====================================${NC}"
 
 # Function to check if a command exists
 command_exists() {
@@ -168,7 +168,7 @@ fi
 echo -e "\n${YELLOW}Starting deployment process...${NC}"
 
 # Step 1: Deploy frontend infrastructure
-echo -e "\n${BLUE}Step 1: Deploying frontend infrastructure...${NC}"
+echo -e "\n${CYAN}Step 1: Deploying frontend infrastructure...${NC}"
 
 echo -e "${YELLOW}Creating deployment plan...${NC}"
 terraform plan -out=tfplan || { echo -e "${RED}Terraform plan failed.${NC}"; exit 1; }
@@ -195,7 +195,7 @@ echo -e "${GREEN}Frontend infrastructure deployed successfully with IP: ${FRONTE
 cd ../..
 
 # Step 2: Update Ansible inventory
-echo -e "\n${BLUE}Step 2: Updating Ansible inventory...${NC}"
+echo -e "\n${CYAN}Step 2: Updating Ansible inventory...${NC}"
 mkdir -p ansible/inventories/production
 INVENTORY_FILE="ansible/inventories/production/hosts.yml"
 
@@ -239,7 +239,7 @@ fi
 
 # Step 3: Update CloudFlare DNS (if configured)
 if [ "$USE_CLOUDFLARE" = true ]; then
-  echo -e "\n${BLUE}Step 3: Updating CloudFlare DNS records...${NC}"
+  echo -e "\n${CYAN}Step 3: Updating CloudFlare DNS records...${NC}"
   
   # Check if we need to update CloudFlare
   CF_NEEDS_UPDATE=true
@@ -267,7 +267,7 @@ countdown_timer() {
     local RED="\033[31m"
     local GREEN="\033[32m"
     local YELLOW="\033[33m"
-    local BLUE="\033[34m"
+    local CYAN="\033[34m"
 
     # Temporary trap to handle Ctrl+C within the timer
     local old_trap
@@ -461,7 +461,7 @@ EOF
         if [ $remaining -gt 60 ]; then
             color=$GREEN
         elif [ $remaining -gt 30 ]; then
-            color=$BLUE
+            color=$CYAN
         elif [ $remaining -gt 10 ]; then
             color=$YELLOW
         else
@@ -580,14 +580,14 @@ fi
 
 # Colors for better output
 GREEN='\033[0;32m'
-BLUE='\033[0;34m'
+Cyan="\[\033[0;36m\]"
 YELLOW='\033[0;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}====================================${NC}"
-echo -e "${BLUE}Update CloudFlare DNS Records${NC}"
-echo -e "${BLUE}====================================${NC}"
+echo -e "${CYAN}====================================${NC}"
+echo -e "${CYAN}Update CloudFlare DNS Records${NC}"
+echo -e "${CYAN}====================================${NC}"
 
 # Check if frontend IP is provided
 if [ -z "$1" ]; then
@@ -666,7 +666,7 @@ fi
 
 # Step 4: Wait for DNS propagation if using CloudFlare
 if [ "$USE_CLOUDFLARE" = true ] && [ "$CF_NEEDS_UPDATE" = true ]; then
-  echo -e "\n${BLUE}Step 4: Waiting for DNS propagation...${NC}"
+  echo -e "\n${CYAN}Step 4: Waiting for DNS propagation...${NC}"
   echo -e "${YELLOW}This may take a few minutes. Press Enter to continue, or wait 60 seconds.${NC}"
   
   if [ "$SKIP_CONFIRMATION" = true ]; then
@@ -678,7 +678,7 @@ if [ "$USE_CLOUDFLARE" = true ] && [ "$CF_NEEDS_UPDATE" = true ]; then
 fi
 
 # Step 5: Deploy with Ansible (if Ansible playbooks exist)
-echo -e "\n${BLUE}Step 5: Deploying configuration with Ansible...${NC}"
+echo -e "\n${CYAN}Step 5: Deploying configuration with Ansible...${NC}"
 if [ -f "ansible/playbooks/frontend-setup.yml" ]; then
   echo -e "${YELLOW}Running Ansible playbook for frontend setup...${NC}"
   
@@ -768,9 +768,9 @@ if [ "$USE_CLOUDFLARE" = true ]; then
   echo -e "  - Alertmanager: https://alertmanager.${SUBDOMAIN_PREFIX}.${DOMAIN_NAME}"
 fi
 
-echo -e "\n${BLUE}Next Steps:${NC}"
+echo -e "\n${CYAN}Next Steps:${NC}"
 echo -e "1. If not using Ansible, manually set up services on the frontend server"
 echo -e "2. Set up the backend monitoring infrastructure on your local network"
 echo -e "3. Configure WireGuard VPN between frontend and backend"
 echo -e "4. Deploy node exporters to your target systems"
-echo -e "\n${BLUE}Happy monitoring!${NC}"
+echo -e "\n${CYAN}Happy monitoring!${NC}"

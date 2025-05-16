@@ -2,14 +2,14 @@
 
 # Colors for better output
 GREEN='\033[0;32m'
-BLUE='\033[0;34m'
+CYAN="\[\033[0;36m\]"
 YELLOW='\033[0;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}====================================${NC}"
-echo -e "${BLUE}Metrics Monitoring Infrastructure Setup${NC}"
-echo -e "${BLUE}====================================${NC}"
+echo -e "${CYAN}====================================${NC}"
+echo -e "${CYAN}Metrics Monitoring Infrastructure Setup${NC}"
+echo -e "${CYAN}====================================${NC}"
 echo -e "${YELLOW}Note: This script is typically called by install.sh${NC}"
 echo -e "${YELLOW}but can be run separately if needed.${NC}"
 
@@ -295,4 +295,4 @@ if [ "$USE_CLOUDFLARE" = true ]; then
 else
   echo -e "   c. Deploy the configuration with Ansible"
 fi
-echo -e "\n${BLUE}Happy monitoring!${NC}"
+echo -e "\n${CYAN}Happy monitoring!${NC}"

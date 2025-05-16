@@ -2,14 +2,14 @@
 
 # Colors for better output
 GREEN='\033[0;32m'
-BLUE='\033[0;34m'
+CYAN="\[\033[0;36m\]"
 YELLOW='\033[0;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}====================================${NC}"
-echo -e "${BLUE}Metrics Monitoring Infrastructure Installation${NC}"
-echo -e "${BLUE}====================================${NC}"
+echo -e "${CYAN}====================================${NC}"
+echo -e "${CYAN}Metrics Monitoring Infrastructure Installation${NC}"
+echo -e "${CYAN}====================================${NC}"
 
 # Save script path for potential restart
 SCRIPT_PATH="$0"
@@ -44,7 +44,7 @@ detect_os() {
 }
 
 # Check and install dependencies
-echo -e "\n${BLUE}Checking dependencies...${NC}"
+echo -e "\n${CYAN}Checking dependencies...${NC}"
 detect_os
 
 MISSING_DEPS=()
@@ -102,7 +102,7 @@ if [ ${#MISSING_DEPS[@]} -gt 0 ]; then
     # ...
     
     # Verify installed dependencies
-    echo -e "\n${BLUE}Verifying installed dependencies...${NC}"
+    echo -e "\n${CYAN}Verifying installed dependencies...${NC}"
     STILL_MISSING=()
     
     for dep in "${MISSING_DEPS[@]}"; do
@@ -258,7 +258,7 @@ fi
 
 # Check if .gitignore file is needed
 if [ ! -f ".gitignore" ]; then
-  echo -e "\n${BLUE}Creating .gitignore file...${NC}"
+  echo -e "\n${CYAN}Creating .gitignore file...${NC}"
   cat > .gitignore << EOF
 # Terraform
 .terraform/
@@ -328,7 +328,7 @@ fi
 # Continue with the rest of the install script...
 
 # Step 0: SSH Key Setup
-echo -e "\n${BLUE}Step 0: SSH Key Setup${NC}"
+echo -e "\n${CYAN}Step 0: SSH Key Setup${NC}"
 SSH_KEY_DIR="$HOME/.ssh/metrics"
 SSH_KEY_PATH="$SSH_KEY_DIR/id_rsa"
 
@@ -424,4 +424,4 @@ else
   echo -e "  SSH_KEY_PATH=\"$SSH_KEY_PATH\" ./scripts/deploy.sh"
 fi
 
-echo -e "\n${BLUE}Happy monitoring!${NC}"
+echo -e "\n${CYAN}Happy monitoring!${NC}"
