@@ -260,7 +260,9 @@ countdown_timer() {
     local BOTTOM_MESSAGE=${3:-"Complete!"}
 
     # Terminal control sequences
-    local CURSOR_UP="\033[13A"  # Move cursor up 13 lines (including blank lines and message)
+    local DIGIT_HEIGHT=10
+    local LINES_PER_FRAME=$((DIGIT_HEIGHT + 1))  # 1 for TOP_MESSAGE
+    local CURSOR_UP="\033[${LINES_PER_FRAME}A"
     local RESET="\033[0m"
     local RED="\033[31m"
     local GREEN="\033[32m"
@@ -470,7 +472,7 @@ EOF
         echo -e "\n$color$TOP_MESSAGE$RESET"
         
         # Display each row of the time
-        for row in {1..7}; do
+        for ((row=1; row<=DIGIT_HEIGHT; row++)); do
             display_time_row $hours $minutes $seconds $row "$color"
         done
     }
@@ -480,9 +482,24 @@ EOF
     display_time $remaining
 
     while [ $remaining -gt 0 ]; do
+        read -t 0.1 -n 1 key
+        if [[ "$key" == " " ]]; then
+            echo -e "\n${YELLOW}Timer skipped by user.${RESET}\n"
+            break
+        fi
+
         sleep 1
         remaining=$((remaining - 1))
         
+        echo -e "$CURSOR_UP"
+        display_time $remaining
+    done
+
+    # Move cursor up to redraw the time display
+    echo -e "$CURSOR_UP"
+    display_time $remaining
+    done
+
         # Move cursor up to redraw the time display
         echo -e "$CURSOR_UP"
         display_time $remaining
