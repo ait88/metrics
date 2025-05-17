@@ -350,6 +350,9 @@ if [ -f "$SSH_KEY_PATH" ]; then
     DEPLOYMENT_ID=$(echo "$KEY_FINGERPRINT" | tail -c 6)
     DEPLOYMENT_NAME="metrics_deployment_${DEPLOYMENT_ID}"
     echo -e "${GREEN}Generated deployment ID: $DEPLOYMENT_NAME${NC}"
+    echo -e "${YELLOW}Updating SSH key comment to match deployment ID...${NC}"
+  ssh-keygen -f "$SSH_KEY_PATH" -c -C "$DEPLOYMENT_NAME"
+  echo -e "${GREEN}SSH key comment updated.${NC}"
   else
     echo -e "${YELLOW}Creating new SSH key...${NC}"
     USE_EXISTING_KEY=false
