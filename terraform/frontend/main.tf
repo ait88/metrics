@@ -77,8 +77,8 @@ resource "vultr_instance" "frontend" {
   plan             = var.plan_id                # e.g., "vc2-1c-1gb"
   region           = var.region                 # e.g., "ewr" (New Jersey)
   os_id            = 1743                       # Ubuntu 22.04 LTS x64
-  label            = "metrics-frontend"
-  hostname         = "metrics-frontend"
+  label            = "var.deployment_name"
+  hostname         = "var.deployment_name"
   ssh_key_ids      = [data.vultr_ssh_key.metrics.id]
   enable_ipv6      = true
   backups          = "disabled"
