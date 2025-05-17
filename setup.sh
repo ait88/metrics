@@ -21,6 +21,22 @@ else
   echo -e "${GREEN}Using SSH key: ${SSH_KEY_PATH}${NC}"
 fi 
 
+# Check if METRICS_DEPLOYMENT_NAME is set, otherwise generate it from key fingerprint
+if [ -z "${METRICS_DEPLOYMENT_NAME}" ]; then
+  # Try to get it from the SSH key
+  if [ -f "${SSH_KEY_PATH}" ]; then
+    KEY_FINGERPRINT=$(ssh-keygen -lf "$SSH_KEY_PATH" | awk '{print $2}' | cut -d':' -f2-)
+    DEPLOYMENT_ID=$(echo "$KEY_FINGERPRINT" | tail -c 6)
+    METRICS_DEPLOYMENT_NAME="metrics_deployment_${DEPLOYMENT_ID}"
+    echo -e "${GREEN}Generated deployment name from key: ${METRICS_DEPLOYMENT_NAME}${NC}"
+  else
+    METRICS_DEPLOYMENT_NAME="metrics_deployment_$(date +%s | tail -c 6)"
+    echo -e "${YELLOW}SSH key not found. Using fallback deployment name: ${METRICS_DEPLOYMENT_NAME}${NC}"
+  fi
+else
+  echo -e "${GREEN}Using deployment name: ${METRICS_DEPLOYMENT_NAME}${NC}"
+fi
+
 # Check prerequisites
 echo -e "\n${YELLOW}Checking prerequisites...${NC}"
 command -v terraform >/dev/null 2>&1 || { echo -e "${RED}Terraform is required but not installed. Aborting.${NC}"; exit 1; }
@@ -178,6 +194,7 @@ if create_file_if_not_exists "$ANSIBLE_MAIN_FILE"; then
 # General configuration
 domain_name: "${DOMAIN_NAME}"
 acme_email: "${ACME_EMAIL}"
+deployment_name: "${METRICS_DEPLOYMENT_NAME}"
 
 # Wireguard configuration
 wireguard_address: "10.8.0.1/24"
@@ -245,6 +262,7 @@ BASIC_AUTH=${BASIC_AUTH_USER}:${HASHED_PASSWORD}
 BACKEND_PROMETHEUS_URL=http://10.8.0.2:9090/api/v1/write
 REMOTE_WRITE_USERNAME=prometheus
 REMOTE_WRITE_PASSWORD=change_me_in_production
+DEPLOYMENT_NAME=${METRICS_DEPLOYMENT_NAME}
 EOF
   echo -e "${GREEN}Created Docker environment example: $DOCKER_ENV_FILE${NC}"
 fi
@@ -261,16 +279,15 @@ cloudflare_zone_id = "${CLOUDFLARE_ZONE_ID}"
 domain_name = "${DOMAIN_NAME}"
 frontend_ip = "FRONTEND_IP_PLACEHOLDER" # Will be updated after frontend deployment
 subdomain_prefix = "${SUBDOMAIN_PREFIX}"
+deployment_name = "${METRICS_DEPLOYMENT_NAME}"
 EOF
     echo -e "${GREEN}Created CloudFlare configuration: $CLOUDFLARE_TFVARS_FILE${NC}"
   fi
 fi
 
-# Remove .gitignore creation (moved to install.sh)
-
-
-# Initialize Git repository if not already initialized (already included in install.sh, so remove from here)
-
+# Save deployment name to a file for other scripts to use
+mkdir -p .metadata
+echo "METRICS_DEPLOYMENT_NAME=\"$METRICS_DEPLOYMENT_NAME\"" > .metadata/deployment_info
 
 # Make scripts executable if they exist
 mkdir -p scripts

@@ -1,0 +1,29 @@
+---
+- name: Initialize Docker Swarm on first manager
+  hosts: swarm_managers[0]
+  tasks:
+    - name: Initialize Swarm
+      community.docker.docker_swarm:
+        state: present
+        advertise_addr: "{{ wireguard_node_ip }}"
+      register: swarm_info
+
+- name: Join other managers to swarm
+  hosts: swarm_managers[1:]
+  tasks:
+    - name: Join as manager
+      community.docker.docker_swarm:
+        state: join
+        advertise_addr: "{{ wireguard_node_ip }}"
+        join_token: "{{ hostvars[groups['swarm_managers'][0]]['swarm_info']['swarm_facts']['JoinTokens']['Manager'] }}"
+        remote_addrs: [ "{{ hostvars[groups['swarm_managers'][0]]['wireguard_node_ip'] }}" ]
+
+- name: Join workers to swarm
+  hosts: swarm_workers
+  tasks:
+    - name: Join as worker
+      community.docker.docker_swarm:
+        state: join
+        advertise_addr: "{{ wireguard_node_ip }}"
+        join_token: "{{ hostvars[groups['swarm_managers'][0]]['swarm_info']['swarm_facts']['JoinTokens']['Worker'] }}"
+        remote_addrs: [ "{{ hostvars[groups['swarm_managers'][0]]['wireguard_node_ip'] }}" ]

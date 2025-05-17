@@ -89,6 +89,9 @@ resource "vultr_instance" "frontend" {
   # User data for initial setup
   user_data = <<-EOF
     #!/bin/bash
+    # Setting deployment name in environment
+    echo "METRICS_DEPLOYMENT_NAME='${var.deployment_name}'" >> /etc/environment
+    
     apt-get update
     apt-get install -y \
       apt-transport-https \
@@ -136,6 +139,10 @@ resource "vultr_instance" "frontend" {
     # Set SSH to prohibit password authentication
     sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
     systemctl restart sshd
+    
+    # Create a file with deployment info
+    mkdir -p /opt/metrics
+    echo "METRICS_DEPLOYMENT_NAME='${var.deployment_name}'" > /opt/metrics/deployment_info.env
   EOF
 
   tags = ["metrics", "frontend"]

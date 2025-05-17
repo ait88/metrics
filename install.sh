@@ -344,6 +344,12 @@ if [ -f "$SSH_KEY_PATH" ]; then
   if [[ ! $REPLY =~ ^[Nn]$ ]]; then
     echo -e "${GREEN}Using existing SSH key.${NC}"
     USE_EXISTING_KEY=true
+    
+    # Generate unique identifier from existing key fingerprint
+    KEY_FINGERPRINT=$(ssh-keygen -lf "$SSH_KEY_PATH" | awk '{print $2}' | cut -d':' -f2-)
+    DEPLOYMENT_ID=$(echo "$KEY_FINGERPRINT" | tail -c 6)
+    DEPLOYMENT_NAME="metrics_deployment_${DEPLOYMENT_ID}"
+    echo -e "${GREEN}Generated deployment ID: $DEPLOYMENT_NAME${NC}"
   else
     echo -e "${YELLOW}Creating new SSH key...${NC}"
     USE_EXISTING_KEY=false
@@ -355,9 +361,23 @@ fi
 
 # Generate new key if needed
 if [ "$USE_EXISTING_KEY" = false ]; then
-  ssh-keygen -t rsa -b 4096 -f "$SSH_KEY_PATH" -N "" -C "metrics_deployment"
+  # Generate a temporary key without comment first
+  ssh-keygen -t rsa -b 4096 -f "$SSH_KEY_PATH" -N "" -C "temporary"
+  
+  # Get the fingerprint for the new key
+  KEY_FINGERPRINT=$(ssh-keygen -lf "$SSH_KEY_PATH" | awk '{print $2}' | cut -d':' -f2-)
+  DEPLOYMENT_ID=$(echo "$KEY_FINGERPRINT" | tail -c 6)
+  DEPLOYMENT_NAME="metrics_deployment_${DEPLOYMENT_ID}"
+  
+  # Update the key with the proper comment containing the unique ID
+  ssh-keygen -f "$SSH_KEY_PATH" -c -C "$DEPLOYMENT_NAME"
+  
   echo -e "${GREEN}SSH key generated at $SSH_KEY_PATH${NC}"
+  echo -e "${GREEN}Generated deployment ID: $DEPLOYMENT_NAME${NC}"
 fi
+
+# Store deployment name for other scripts to use
+echo "export METRICS_DEPLOYMENT_NAME=\"$DEPLOYMENT_NAME\"" > "$SSH_KEY_DIR/deployment_env"
 
 # Display the public key
 echo -e "${YELLOW}Your SSH public key (add this to Vultr when creating a new instance):${NC}"
@@ -389,8 +409,9 @@ mkdir -p scripts
 
 # Run setup.sh
 echo -e "\n${YELLOW}Step 1: Running setup.sh to configure the infrastructure...${NC}"
-# Export SSH key path for setup.sh to use
+# Export SSH key path and deployment name for setup.sh to use
 export SSH_KEY_PATH
+export METRICS_DEPLOYMENT_NAME="$DEPLOYMENT_NAME"
 ./setup.sh
 
 if [ $? -ne 0 ]; then
@@ -409,8 +430,9 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   
   # Run deploy.sh
   echo -e "\n${YELLOW}Step 2: Running deploy.sh to deploy the infrastructure...${NC}"
-  # Export SSH key path for deploy.sh to use
+  # Export SSH key path and deployment name for deploy.sh to use
   export SSH_KEY_PATH
+  export METRICS_DEPLOYMENT_NAME="$DEPLOYMENT_NAME"
   ./scripts/deploy.sh
   
   if [ $? -ne 0 ]; then
@@ -421,7 +443,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   echo -e "\n${GREEN}Installation completed successfully!${NC}"
 else
   echo -e "\n${YELLOW}You can deploy the infrastructure later by running:${NC}"
-  echo -e "  SSH_KEY_PATH=\"$SSH_KEY_PATH\" ./scripts/deploy.sh"
+  echo -e "  SSH_KEY_PATH=\"$SSH_KEY_PATH\" METRICS_DEPLOYMENT_NAME=\"$DEPLOYMENT_NAME\" ./scripts/deploy.sh"
 fi
 
 echo -e "\n${CYAN}Happy monitoring!${NC}"

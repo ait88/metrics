@@ -57,6 +57,24 @@ else
   echo -e "${GREEN}Using SSH key: ${SSH_KEY_PATH}${NC}"
 fi
 
+# Check if METRICS_DEPLOYMENT_NAME is set
+if [ -z "${METRICS_DEPLOYMENT_NAME}" ]; then
+  # Try to get it from the metadata file
+  if [ -f ".metadata/deployment_info" ]; then
+    source .metadata/deployment_info
+    echo -e "${GREEN}Using deployment name from metadata: ${METRICS_DEPLOYMENT_NAME}${NC}"
+  # Try to get it from the SSH key
+  elif [ -f "${SSH_KEY_PATH}" ]; then
+    KEY_FINGERPRINT=$(ssh-keygen -lf "$SSH_KEY_PATH" | awk '{print $2}' | cut -d':' -f2-)
+    DEPLOYMENT_ID=$(echo "$KEY_FINGERPRINT" | tail -c 6)
+    METRICS_DEPLOYMENT_NAME="metrics_deployment_${DEPLOYMENT_ID}"
+    echo -e "${GREEN}Generated deployment name from key: ${METRICS_DEPLOYMENT_NAME}${NC}"
+  else
+    METRICS_DEPLOYMENT_NAME="metrics_deployment_$(date +%s | tail -c 6)"
+    echo -e "${YELLOW}No deployment name found. Using generated name: ${METRICS_DEPLOYMENT_NAME}${NC}"
+  fi
+fi
+
 # Check if the SSH key exists
 if [ ! -f "${SSH_KEY_PATH}" ]; then
   echo -e "${RED}SSH key not found at ${SSH_KEY_PATH}. Please check the path.${NC}"
@@ -170,8 +188,13 @@ echo -e "\n${YELLOW}Starting deployment process...${NC}"
 # Step 1: Deploy frontend infrastructure
 echo -e "\n${CYAN}Step 1: Deploying frontend infrastructure...${NC}"
 
+# Update user_data in main.tf to include the deployment name
+echo -e "${YELLOW}Adding deployment name to instance configuration...${NC}"
+# This might need a more robust approach for updating Terraform files
+# For now, we'll just pass it through user_data environment variables
+
 echo -e "${YELLOW}Creating deployment plan...${NC}"
-terraform plan -out=tfplan || { echo -e "${RED}Terraform plan failed.${NC}"; exit 1; }
+terraform plan -out=tfplan -var="deployment_name=${METRICS_DEPLOYMENT_NAME}" || { echo -e "${RED}Terraform plan failed.${NC}"; exit 1; }
 
 # Check if there are any changes to apply
 PLAN_CHANGES=$(terraform show -no-color tfplan | grep -E '^\s*[~+-]' | wc -l)
@@ -223,6 +246,7 @@ all:
           ansible_host: "${FRONTEND_IP}"
           ansible_user: root
           ansible_ssh_private_key_file: "${SSH_KEY_PATH}"
+          deployment_name: "${METRICS_DEPLOYMENT_NAME}"
     
     backend:
       children:
@@ -266,7 +290,7 @@ if [ "$USE_CLOUDFLARE" = true ]; then
 
 # Colors for better output
 GREEN='\033[0;32m'
-Cyan="\[\033[0;36m\]"
+CYAN="\033[0;36m"
 YELLOW='\033[0;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
@@ -298,11 +322,30 @@ if [ ! -d "terraform/cloudflare" ] || [ ! -f "terraform/cloudflare/terraform.tfv
   exit 1
 fi
 
+# Get deployment name from metadata if set
+if [ -f ".metadata/deployment_info" ]; then
+  source .metadata/deployment_info
+  echo -e "${GREEN}Using deployment name from metadata: ${METRICS_DEPLOYMENT_NAME}${NC}"
+fi
+
 # Update the CloudFlare terraform.tfvars file with the frontend IP
 sed -i "s/FRONTEND_IP_PLACEHOLDER/${FRONTEND_IP}/" terraform/cloudflare/terraform.tfvars || {
   echo -e "${RED}Error: Failed to update CloudFlare terraform.tfvars with frontend IP.${NC}"
   exit 1
 }
+
+# Update deployment name if needed
+if [ -n "$METRICS_DEPLOYMENT_NAME" ]; then
+  # Check if deployment_name exists in terraform.tfvars
+  if grep -q "deployment_name" terraform/cloudflare/terraform.tfvars; then
+    # Update existing deployment_name
+    sed -i "s/deployment_name = \".*\"/deployment_name = \"${METRICS_DEPLOYMENT_NAME}\"/" terraform/cloudflare/terraform.tfvars
+  else
+    # Add deployment_name if it doesn't exist
+    echo "deployment_name = \"${METRICS_DEPLOYMENT_NAME}\"" >> terraform/cloudflare/terraform.tfvars
+  fi
+  echo -e "${GREEN}Updated deployment name in CloudFlare configuration.${NC}"
+fi
 
 # Initialize and apply CloudFlare configuration
 cd terraform/cloudflare || {
@@ -338,10 +381,10 @@ EOFSCRIPT
     fi
 
     chmod +x scripts/update_cloudflare.sh
-    ./scripts/update_cloudflare.sh "$FRONTEND_IP" || { 
+    METRICS_DEPLOYMENT_NAME="$METRICS_DEPLOYMENT_NAME" ./scripts/update_cloudflare.sh "$FRONTEND_IP" || { 
       echo -e "${RED}CloudFlare DNS update failed.${NC}"; 
       echo -e "${YELLOW}You can try running it manually:${NC}";
-      echo -e "   ./scripts/update_cloudflare.sh $FRONTEND_IP";
+      echo -e "   METRICS_DEPLOYMENT_NAME=\"$METRICS_DEPLOYMENT_NAME\" ./scripts/update_cloudflare.sh $FRONTEND_IP";
       # Continue despite error
     }
   else
@@ -755,16 +798,16 @@ if [ -f "ansible/playbooks/frontend-setup.yml" ]; then
     fi
   done
     if [ "$SSH_CONNECTED" = true ]; then
-    timeout 600 ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml --private-key="${SSH_KEY_PATH}" || {
+    timeout 600 ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml --private-key="${SSH_KEY_PATH}" -e "deployment_name=${METRICS_DEPLOYMENT_NAME}" || {
       echo -e "${RED}Ansible deployment failed.${NC}";
       echo -e "${YELLOW}You may need to wait a bit longer for the server to be ready.${NC}";
       echo -e "${YELLOW}You can try running the playbook manually:${NC}";
-      echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml";
+      echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml -e \"deployment_name=${METRICS_DEPLOYMENT_NAME}\"";
     }
   else
     echo -e "${RED}SSH connection to frontend failed after $SSH_RETRIES attempts. Server may not be ready yet.${NC}"
     echo -e "${YELLOW}Wait a few minutes and then run:${NC}"
-    echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml"
+    echo -e "   ansible-playbook -i ansible/inventories/production ansible/playbooks/frontend-setup.yml -e \"deployment_name=${METRICS_DEPLOYMENT_NAME}\""
   fi
 else
   echo -e "${YELLOW}Ansible playbooks not found. Skipping Ansible deployment.${NC}"
@@ -774,6 +817,7 @@ fi
 # Final status
 echo -e "\n${GREEN}Deployment process completed!${NC}"
 echo -e "${YELLOW}Frontend server: ${FRONTEND_IP}${NC}"
+echo -e "${YELLOW}Deployment name: ${METRICS_DEPLOYMENT_NAME}${NC}"
 
 if [ "$USE_CLOUDFLARE" = true ]; then
   # Try to get domain info from CloudFlare config

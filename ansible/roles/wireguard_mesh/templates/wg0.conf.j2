@@ -1,0 +1,14 @@
+[Interface]
+Address = {{ wireguard_node_ip }}/24
+PrivateKey = {{ wireguard_private_key }}
+ListenPort = 51820
+
+{% for peer in wireguard_peers %}
+{% if peer.name != inventory_hostname %}
+[Peer]
+PublicKey = {{ peer.public_key }}
+AllowedIPs = {{ peer.allowed_ips }}
+Endpoint = {{ peer.endpoint_ip }}:51820
+PersistentKeepalive = 25
+{% endif %}
+{% endfor %}

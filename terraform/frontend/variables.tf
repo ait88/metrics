@@ -34,3 +34,9 @@ variable "allowed_ssh_ips" {
   type        = list(string)
   default     = ["0.0.0.0/0"]  # Not recommended for production
 }
+
+variable "deployment_name" {
+  description = "Unique deployment identifier"
+  type        = string
+  default     = "metrics_deployment"  // Default will be overridden
+}
