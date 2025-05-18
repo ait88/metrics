@@ -77,7 +77,7 @@ resource "vultr_instance" "frontend" {
   plan             = var.plan_id               
   region           = var.region              
   os_id            = 1743                    
-  label            = "var.deployment_name"
+  label            = var.deployment_name
   hostname         = replace(var.deployment_name, "_", "-")
   ssh_key_ids      = [data.vultr_ssh_key.metrics.id]
   enable_ipv6      = true
