@@ -74,11 +74,11 @@ data "vultr_ssh_key" "metrics" {
 
 # Create a new VPS for the frontend component
 resource "vultr_instance" "frontend" {
-  plan             = var.plan_id                # e.g., "vc2-1c-1gb"
-  region           = var.region                 # e.g., "ewr" (New Jersey)
-  os_id            = 1743                       # Ubuntu 22.04 LTS x64
+  plan             = var.plan_id               
+  region           = var.region              
+  os_id            = 1743                    
   label            = "var.deployment_name"
-  hostname         = "var.deployment_name"
+  hostname         = replace(var.deployment_name, "_", "-")
   ssh_key_ids      = [data.vultr_ssh_key.metrics.id]
   enable_ipv6      = true
   backups          = "disabled"
