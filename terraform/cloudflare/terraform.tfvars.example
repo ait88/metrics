@@ -1,0 +1,6 @@
+cloudflare_api_token = "your_cloudflare_api_token_here"
+cloudflare_zone_id = "your_zone_id_here"
+domain_name = "example.com"
+frontend_ip = "FRONTEND_IP_PLACEHOLDER"
+subdomain_prefix = "metrics"
+deployment_name = "metrics_deployment_example"

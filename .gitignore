@@ -1,62 +1,277 @@
-# Terraform
+# ==============================================
+# Metrics Monitoring Infrastructure .gitignore
+# ==============================================
+# This file ensures only necessary template and setup files are committed
+# Generated configurations, secrets, and user-specific files are excluded
+
+# ==================
+# Terraform Files
+# ==================
+# Terraform state and temporary files
 .terraform/
 .terraform.lock.hcl
 terraform.tfstate
 terraform.tfstate.backup
-terraform.tfvars
 *.tfplan
+*.tfplan.json
 override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
 
-# Ansible
-ansible/inventories/*/hosts.yml
-ansible/vars/secrets.yml
-*.retry
+# Terraform workspace and cache files
+.terraform.tfstate.lock.info
+*.tfvars.backup
+fp.dsk
+*.dsk
 
-# SSH Keys
+# User-specific Terraform configuration (generated from examples)
+terraform.tfvars
+**/terraform.tfvars
+# Keep the .example files for templates
+!**/terraform.tfvars.example
+
+# ==================
+# Ansible Files
+# ==================
+# Generated inventory files (populated by scripts)
+ansible/inventories/*/hosts.yml
+# Keep example inventory files as templates
+!ansible/inventories/*/hosts.example.yml
+
+# Ansible secrets and sensitive variables
+ansible/vars/secrets.yml
+ansible/vars/local.yml
+ansible/vars/production.yml
+ansible/vars/development.yml
+# Keep main.yml as it contains non-sensitive defaults
+!ansible/vars/main.yml
+
+# Ansible retry files and logs
+*.retry
+ansible/*.log
+
+# ==================
+# SSH Keys and Certificates
+# ==================
+# SSH keys (generated during setup)
 *.pem
 *.key
 id_rsa*
 *.ppk
+# SSH directories
+.ssh/
+**/ssh_keys/
 
-# Environment variables
-.env
-.env.*
-!.env.example
-
-# Docker
-docker-compose.override.yml
-
-# Certificates
+# SSL/TLS certificates and keys
 *.crt
 *.csr
-*.key
 *.p12
-*.pem
+*.cert
+*.ca-bundle
 
-# OS specific
-.DS_Store
-Thumbs.db
+# ==================
+# Environment and Configuration Files
+# ==================
+# Generated environment files
+.env
+.env.*
+# Keep example environment files as templates
+!.env.example
+!**/.env.example
 
-# Editor specific
-.vscode/
-.idea/
-*.swp
-*~
+# User-specific Docker overrides
+docker-compose.override.yml
+**/docker-compose.override.yml
 
-# Wireguard
+# Generated configuration files (from templates)
+**/prometheus.yml
+**/blackbox.yml
+**/alertmanager.yml
+**/grafana.ini
+# Keep template files
+!**/*.yml.j2
+!**/*.ini.j2
+!**/*.conf.j2
+
+# ==================
+# WireGuard Configuration
+# ==================
+# Generated WireGuard configs (contain private keys)
 wg*.conf
+**/wireguard/*.conf
+# Keep template files
+!**/wireguard/*.conf.j2
 
-# Other sensitive data
+# ==================
+# Deployment and Build Artifacts
+# ==================
+# Metadata and temporary files created during deployment
+.metadata/
+deployment_info*
+*.tmp
+*.temp
+
+# Generated scripts (if any)
+scripts/generated_*
+
+# Log files
+*.log
+logs/
+**/logs/
+
+# ==================
+# Sensitive Data
+# ==================
+# Files containing credentials, tokens, or passwords
 **/credentials.yml
 **/passwords.yml
 **/tokens.yml
+**/secrets.yml
+**/vault.yml
 
-# Editor and backup files
+# API keys and configuration
+*apikey*
+*api-key*
+*secret*
+*password*
+# Case variations
+*APIKEY*
+*SECRET*
+*PASSWORD*
+
+# ==================
+# Operating System
+# ==================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.nfs*
+
+# ==================
+# Editor and IDE
+# ==================
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# ==================
+# Backup Files
+# ==================
 *.backup
 *.bak
-*.ini
-fp.ini
+*.orig
+*.rej
+
+# ==================
+# Archive Files
+# ==================
+*.zip
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.tar.xz
+*.7z
+*.rar
+
+# ==================
+# Temporary Directories
+# ==================
+tmp/
+temp/
+cache/
+.cache/
+
+# ==================
+# Development and Testing
+# ==================
+# Test outputs
+test-results/
+coverage/
+
+# Development tools
+node_modules/
+.npm/
+.yarn/
+
+# ==================
+# Cloud Provider Specific
+# ==================
+# Vultr specific (if any local configs are created)
+vultr_config.json
+vultr_instances.json
+
+# CloudFlare specific
+cloudflare_config.json
+cf_tokens.txt
+
+# ==================
+# Documentation Build
+# ==================
+# Generated documentation
+docs/_build/
+docs/build/
+site/
+
+# ==================
+# Optional: Project Specific Exclusions
+# ==================
+# Add any project-specific files that should be ignored
+# but are not covered by the categories above
+
+# Prometheus data directories (if running locally)
+prometheus_data/
+grafana_data/
+loki_data/
+alertmanager_data/
+
+# Local development overrides
+local/
+dev/
+development/
+
+# Personal notes and todo files
+TODO.md
+NOTES.md
+*.todo
+*.notes
+
+# Zone identifier files (Windows)
 *:Zone.Identifier

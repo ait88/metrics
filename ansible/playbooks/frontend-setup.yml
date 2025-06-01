@@ -8,28 +8,28 @@
 
   pre_tasks:
     - name: Wait for apt lock to be released
-      shell: while lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
-      changed_when: False
+      ansible.builtin.shell: while lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
+      changed_when: false
       retries: 10
       delay: 30
       register: apt_lock_wait
       until: apt_lock_wait is not failed
 
     - name: Check if apt is running
-      shell: "pgrep -f apt || echo 'No apt processes'"
+      ansible.builtin.shell: "pgrep -f apt || echo 'No apt processes'"
       register: apt_check
       changed_when: false
-  
+
     - name: Display apt status
-      debug:
+      ansible.builtin.debug:
         msg: "Apt status: {{ apt_check.stdout }}"
-    
+
     - name: Ensure dpkg is in a good state
-      shell: "dpkg --configure -a"
+      ansible.builtin.command: "dpkg --configure -a"
       changed_when: false
 
     - name: Force clean apt/dpkg state
-      shell: |
+      ansible.builtin.shell: |
         if lsof /var/lib/dpkg/lock-frontend >/dev/null 2>&1; then
           echo "Removing stale lock files..."
           rm -f /var/lib/apt/lists/lock
@@ -42,12 +42,12 @@
 
   tasks:
     - name: Update apt cache
-      apt:
-        update_cache: yes
+      ansible.builtin.apt:
+        update_cache: true
         cache_valid_time: 3600
 
     - name: Install required packages
-      apt:
+      ansible.builtin.apt:
         name:
           - apt-transport-https
           - ca-certificates
@@ -64,17 +64,17 @@
       until: package_install is success
 
     - name: Add Docker repository key
-      apt_key:
+      ansible.builtin.apt_key:
         url: https://download.docker.com/linux/ubuntu/gpg
         state: present
 
     - name: Add Docker repository
-      apt_repository:
+      ansible.builtin.apt_repository:
         repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
         state: present
 
     - name: Install Docker
-      apt:
+      ansible.builtin.apt:
         name:
           - docker-ce
           - docker-ce-cli
@@ -86,27 +86,27 @@
       until: docker_install is success
 
     - name: Install Docker Compose
-      get_url:
+      ansible.builtin.get_url:
         url: "https://github.com/docker/compose/releases/download/v2.24.6/docker-compose-linux-x86_64"
         dest: /usr/local/bin/docker-compose
-        mode: '0755'
+        mode: "0755"
       register: docker_compose_download
 
     - name: Create docker-compose symlink
-      file:
+      ansible.builtin.file:
         src: /usr/local/bin/docker-compose
         dest: /usr/bin/docker-compose
         state: link
       when: docker_compose_download.changed
 
     - name: Add user to docker group
-      user:
+      ansible.builtin.user:
         name: "{{ ansible_user }}"
         groups: docker
-        append: yes
+        append: true
 
     - name: Configure firewall
-      ufw:
+      community.general.ufw:
         rule: allow
         port: "{{ item }}"
         proto: "{{ 'udp' if item == '51820' else 'tcp' }}"
@@ -117,17 +117,17 @@
         - "51820"
 
     - name: Enable UFW
-      ufw:
+      community.general.ufw:
         state: enabled
         policy: deny
 
     - name: Create directories
-      file:
+      ansible.builtin.file:
         path: "{{ item }}"
         state: directory
         owner: root
         group: root
-        mode: 0755
+        mode: "0755"
       loop:
         - "/opt/metrics/docker"
         - "/opt/metrics/docker/prometheus"
@@ -135,25 +135,27 @@
         - "/opt/metrics/wireguard"
 
     - name: Generate WireGuard private key
-      shell: wg genkey
+      ansible.builtin.command: wg genkey
       register: wireguard_private_key
       changed_when: false
 
     - name: Generate WireGuard public key
-      shell: echo "{{ wireguard_private_key.stdout }}" | wg pubkey
+      ansible.builtin.shell:
+        cmd: echo "{{ wireguard_private_key.stdout }}" | wg pubkey
+        executable: /bin/bash
       register: wireguard_public_key
       changed_when: false
 
     - name: Configure WireGuard
-      template:
+      ansible.builtin.template:
         src: ../roles/wireguard/templates/wg0.conf.j2
         dest: /opt/metrics/wireguard/wg0.conf
         owner: root
         group: root
-        mode: 0600
+        mode: "0600"
 
     - name: Enable WireGuard
-      copy:
+      ansible.builtin.copy:
         content: |
           [Unit]
           Description=WireGuard interface wg0
@@ -170,44 +172,45 @@
         dest: /etc/systemd/system/wg-quick@wg0.service
         owner: root
         group: root
-        mode: 0644
+        mode: "0644"
 
     - name: Display WireGuard configuration
-      debug:
+      ansible.builtin.debug:
         msg: "WireGuard private key is {{ wireguard_private_key.stdout }} and public key is {{ wireguard_public_key.stdout }}"
 
     - name: Start and enable WireGuard
-      systemd:
+      ansible.builtin.systemd:
         name: wg-quick@wg0
         state: started
-        enabled: yes
-        daemon_reload: yes
+        enabled: true
+        daemon_reload: true
       register: wireguard_service_result
       ignore_errors: true
 
     - name: Check WireGuard service status if it failed
-      shell: "systemctl status wg-quick@wg0.service"
+      ansible.builtin.command: "systemctl status wg-quick@wg0.service"
       register: wg_status
       when: wireguard_service_result is failed
       ignore_errors: true
+      changed_when: false
 
     - name: Display WireGuard service status if it failed
-      debug:
+      ansible.builtin.debug:
         msg: "{{ wg_status.stdout_lines | default('No output') }}"
       when: wg_status is defined
 
     - name: Continue despite WireGuard failure
-      debug:
+      ansible.builtin.debug:
         msg: "WireGuard setup failed but continuing with deployment. You may need to set it up manually later."
       when: wireguard_service_result is failed
 
     - name: Copy Docker Compose files
-      template:
+      ansible.builtin.template:
         src: "../roles/frontend/templates/{{ item.src }}"
         dest: "/opt/metrics/docker/{{ item.dest }}"
         owner: root
         group: root
-        mode: 0644
+        mode: "0644"
       loop:
         - { src: "docker-compose.yml.j2", dest: "docker-compose.yml" }
         - { src: "prometheus.yml.j2", dest: "prometheus/prometheus.yml" }
@@ -215,14 +218,14 @@
         - { src: ".env.j2", dest: ".env" }
 
     - name: Start Docker Compose services
-      shell: cd /opt/metrics/docker && docker-compose up -d
-      args:
+      ansible.builtin.shell:
+        cmd: cd /opt/metrics/docker && docker-compose up -d
         executable: /bin/bash
       register: docker_compose_result
       changed_when: "'Creating' in docker_compose_result.stdout or 'Starting' in docker_compose_result.stdout"
 
     - name: Output connection information
-      debug:
+      ansible.builtin.debug:
         msg:
           - "Frontend setup completed successfully."
           - "WireGuard Public Key: {{ wireguard_public_key.stdout }}"

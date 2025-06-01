@@ -1,13 +1,16 @@
 ---
-# General configuration
-domain_name: "aitops.au"
-acme_email: "metrics@alexandrinait.com.au"
+# General configuration - Template with placeholders
+# Actual values are populated during setup.sh execution
+
+domain_name: "example.com"
+acme_email: "admin@example.com"
+deployment_name: "metrics_deployment_placeholder"
 
 # Wireguard configuration
 wireguard_address: "10.8.0.1/24"
 wireguard_port: 51820
 wireguard_peers:
-  - public_key: "REPLACE_AFTER_DEPLOYMENT"  # Will be generated during setup
+  - public_key: "TO_BE_GENERATED_DURING_SETUP"
     allowed_ips: "10.8.0.2/32"
 
 # Docker configuration
