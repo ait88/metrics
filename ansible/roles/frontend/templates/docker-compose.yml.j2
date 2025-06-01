@@ -26,6 +26,7 @@ services:
       - TZ=UTC
     networks:
       - traefik-net
+      - prometheus-net
 
   pushgateway:
     image: prom/pushgateway:v1.6.2

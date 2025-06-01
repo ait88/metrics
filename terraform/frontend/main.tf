@@ -53,6 +53,17 @@ resource "vultr_firewall_rule" "https" {
   notes             = "Allow HTTPS"
 }
 
+# Prometheus rule (for WireGuard access)
+resource "vultr_firewall_rule" "prometheus" {
+  firewall_group_id = vultr_firewall_group.frontend.id
+  protocol          = "tcp"
+  ip_type           = "v4"
+  subnet            = "10.8.0.0"
+  subnet_size       = 24
+  port              = "9090"
+  notes             = "Allow Prometheus access from WireGuard"
+}
+
 # WireGuard rule
 resource "vultr_firewall_rule" "wireguard" {
   firewall_group_id = vultr_firewall_group.frontend.id
