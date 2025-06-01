@@ -202,6 +202,115 @@ The workflow can be triggered manually through the GitHub Actions interface.
    - CloudFlare DNS updates usually propagate within 5 minutes
    - You can verify DNS records in the CloudFlare dashboard
 
+### Additional Troubleshooting
+
+#### Blackbox Exporter Configuration Issue
+
+**Problem**: Blackbox exporter stuck in restart loop with error:
+```
+error parsing config file: yaml: unmarshal errors:
+  line 10: field prefer_ip_protocol not found in type config.plain
+```
+
+**Solution**: The `prefer_ip_protocol` field should be `preferred_ip_protocol` and only exists under the `icmp` module:
+
+```yaml
+# Correct configuration
+icmp:
+  prober: icmp
+  timeout: 5s
+  icmp:
+    preferred_ip_protocol: ip4  # Note: "preferred" not "prefer"
+```
+
+#### Network Connectivity Between Traefik and Services
+
+**Problem**: Services return 502 Bad Gateway or timeout errors even though containers are running.
+
+**Symptoms**:
+- `wget: bad address 'service-name:port'` in Traefik logs
+- Services accessible directly but not through Traefik
+
+**Solution**: Ensure Traefik is on both required networks:
+
+```yaml
+services:
+  traefik:
+    networks:
+      - traefik-net      # For incoming traffic
+      - prometheus-net   # To reach backend services
+    # ... rest of configuration
+
+  # All services needing external access must have:
+  your-service:
+    networks:
+      - traefik-net      # For Traefik to reach it
+      - prometheus-net   # For internal communication
+```
+
+#### Loki Permission Issues
+
+**Problem**: Loki container fails to start with errors:
+```
+mkdir wal: permission denied
+error initialising module: ingester
+```
+
+**Solution**: Create directories with correct permissions:
+
+```bash
+# Create all required directories
+cd /opt/metrics/docker
+mkdir -p ./loki/{wal,chunks,boltdb-shipper-active,boltdb-shipper-cache,compactor}
+
+# Set ownership to Loki's UID
+sudo chown -R 10001:10001 ./loki
+
+# Update docker-compose.yml to mount wal directory
+volumes:
+  - ./loki:/etc/loki
+  - loki_data:/loki
+  - ./loki/wal:/wal  # Add this line
+
+# Add to loki-config.yaml
+compactor:
+  working_directory: /loki/compactor
+```
+
+#### Frontend Prometheus Not Accessible from Backend
+
+**Problem**: Backend cannot reach Frontend Prometheus for federation.
+
+**Solution**: Expose Prometheus port in Frontend docker-compose.yml:
+
+```yaml
+prometheus:
+  ports:
+    - "9090:9090"  # Add this to expose Prometheus
+```
+
+#### Grafana Shows "N/A" for All Metrics
+
+**Problem**: Dashboard imported but shows no data.
+
+**Possible Causes**:
+1. Prometheus not scraping targets - Check http://prometheus:9090/targets
+2. Wrong data source selected - Verify Prometheus is configured in Grafana
+3. Time range issue - Adjust time range to "Last 5 minutes"
+4. Metrics not yet collected - Wait 2-3 minutes for data
+
+**Debug Steps**:
+```bash
+# Check if Prometheus has data
+curl http://localhost:9090/api/v1/query?query=up
+
+# Verify node exporter is working
+curl http://node-exporter:9100/metrics | grep node_
+
+# Check Prometheus targets from inside container
+docker exec prometheus wget -O- http://localhost:9090/api/v1/targets
+```   
+
 ### Getting Help
 
 If you encounter issues:

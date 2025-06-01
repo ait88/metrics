@@ -126,6 +126,122 @@ Import the predefined dashboards into Grafana:
 3. Navigate to Dashboards -> Import
 4. Import the JSON files from the `dashboards` directory
 
+## Backend Infrastructure Setup
+
+### Prerequisites for Backend
+
+The backend components require:
+- A VM or physical server on your private network
+- Ubuntu 22.04 or similar Linux distribution
+- Docker and Docker Compose installed
+- At least 2GB RAM and 20GB storage
+- Access to the WireGuard VPN network (10.8.0.0/24)
+
+### Manual Backend Setup Steps
+
+Since the backend infrastructure varies by environment, manual setup is required:
+
+1. **Prepare the Backend Server**
+   ```bash
+   # Install Docker
+   curl -fsSL https://get.docker.com | sh
+   
+   # Install Docker Compose
+   sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.6/docker-compose-linux-x86_64" \
+     -o /usr/local/bin/docker-compose
+   sudo chmod +x /usr/local/bin/docker-compose
+   
+   # Install WireGuard
+   sudo apt update
+   sudo apt install -y wireguard
+   ```
+
+2. **Configure WireGuard**
+   ```bash
+   # Generate keys
+   wg genkey | sudo tee /etc/wireguard/private.key
+   sudo chmod 600 /etc/wireguard/private.key
+   cat /etc/wireguard/private.key | wg pubkey | sudo tee /etc/wireguard/public.key
+   
+   # Create configuration
+   sudo nano /etc/wireguard/wg0.conf
+   ```
+   
+   Use this configuration:
+   ```ini
+   [Interface]
+   Address = 10.8.0.2/24
+   PrivateKey = <your-private-key>
+   ListenPort = 51820
+   
+   [Peer]
+   PublicKey = <frontend-public-key>
+   AllowedIPs = 10.8.0.1/32
+   Endpoint = <frontend-public-ip>:51820
+   PersistentKeepalive = 25
+   ```
+
+3. **Deploy Backend Services**
+   ```bash
+   # Create directory structure
+   sudo mkdir -p /opt/metrics/docker/{prometheus,alertmanager,loki/wal,grafana}
+   cd /opt/metrics/docker
+   
+   # Copy docker-compose.yml from docker/backend/
+   # Copy configuration files
+   
+   # Set Loki permissions
+   sudo chown -R 10001:10001 ./loki
+   
+   # Start services
+   docker-compose up -d
+   ```
+
+### Loki Directory Permissions Fix
+
+Loki requires specific permissions for its data directories:
+
+```bash
+# Create required directories
+mkdir -p ./loki/{wal,chunks,boltdb-shipper-active,boltdb-shipper-cache,compactor}
+
+# Set ownership (Loki runs as UID 10001)
+sudo chown -R 10001:10001 ./loki
+
+# If Loki fails to start, check logs:
+docker logs <loki-container-name>
+```
+
+### Network Configuration Requirements
+
+#### Docker Networks
+Ensure services can communicate:
+
+1. **Frontend Requirements**:
+   - Traefik must be on both `traefik-net` AND `prometheus-net`
+   - All services that need external access must be on `traefik-net`
+   - All monitoring services must be on `prometheus-net`
+
+2. **Backend Requirements**:
+   - All services on a single `monitoring` network
+   - Ports exposed on all interfaces (0.0.0.0) or WireGuard interface (10.8.0.2)
+
+#### Firewall Rules
+```bash
+# Frontend (public)
+sudo ufw allow 80/tcp    # HTTP
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw allow 51820/udp # WireGuard
+sudo ufw allow from 10.8.0.0/24 to any port 9090  # Prometheus for backend
+
+# Backend (private)
+# Only allow from WireGuard network
+sudo ufw allow from 10.8.0.0/24 to any port 9090  # Prometheus
+sudo ufw allow from 10.8.0.0/24 to any port 3000  # Grafana
+sudo ufw allow from 10.8.0.0/24 to any port 9093  # Alertmanager
+sudo ufw allow from 10.8.0.0/24 to any port 3100  # Loki
+```
+
 ## Step 9: Set Up Alerting
 
 Configure alerting rules and notification channels:
