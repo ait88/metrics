@@ -217,6 +217,9 @@ if create_file_if_not_exists "$ANSIBLE_SECRETS_FILE"; then
 # Frontend authentication
 basic_auth: "${BASIC_AUTH_USER}:${HASHED_PASSWORD}"
 
+# Grafana admin user password
+grafana_admin_password: "$(openssl rand -hex 16)"
+
 # Backend authentication
 remote_write_username: "prometheus"
 remote_write_password: "$(openssl rand -hex 16)"
